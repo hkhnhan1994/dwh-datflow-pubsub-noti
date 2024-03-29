@@ -1,0 +1,7 @@
+apache_beam==2.48.0
+pandas==1.3.5
+protobuf
+PyYAML==6.0.1
+setuptools==40.8.0
+google-cloud
+google-cloud-pubsub

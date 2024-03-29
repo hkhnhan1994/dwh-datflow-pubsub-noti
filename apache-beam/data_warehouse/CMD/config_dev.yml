@@ -1,0 +1,7 @@
+#  the list of data warehouse tables that will be implemented
+
+PROJECT: pj-bu-dw-data-sbx
+DATASET: dwh_view_cmd
+
+WHITELISTS:
+- DEMO_TRANSFOMATION

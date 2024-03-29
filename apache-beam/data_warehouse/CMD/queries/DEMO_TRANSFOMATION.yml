@@ -1,0 +1,30 @@
+QUERY: |
+  SELECT 
+    pa.public_identifier, pa.id, le.date_of_incorporation 
+  FROM stream.dwh_legal_entity_payment_accounts pa
+  INNER JOIN stream.dwh_legal_entities le
+      ON pa.legal_entity_public_identifier = le.public_identifier
+  LIMIT 100
+
+
+LOAD_TO_BQ : true
+
+WRITE_DISPOSITION: WRITE_APPEND
+
+TIMEPARTITIONING:
+  # field: T_INGESTION_TIMESTAMP
+  # type: DAY
+
+CLUSTER_FIELDS:
+# - T_SOURCE
+# - T_DML_TYPE
+
+CREATE_DISPOSITION: CREATE_IF_NEEDED
+
+SCHEMA:
+  - name: public_identifier
+    type: STRING
+    mode: NULLABLE
+  - name: date_of_incorporation
+    type: STRING
+    mode: NULLABLE

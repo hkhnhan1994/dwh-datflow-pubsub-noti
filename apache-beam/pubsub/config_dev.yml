@@ -1,0 +1,17 @@
+JOB_NAME: "gcs-to-pubsub-streamtest"
+STAGING_LOCATION: "gs://test_bucket_upvn/datastream-postgres/Beam-pubsub/staging"
+TEMP_LOCATION: "gs://test_bucket_upvn/datastream-postgres/Beam-pubsub/temp"
+DEFAULT_TOPIC: "text-2-pubsub-test-pythonconvert"
+FILE_PATH: "gs://test_bucket_upvn/datastream-postgres/datastream/*/*/*/*/*/*/*/*.*"
+PROJECT: "pj-bu-dw-data-sbx"
+REGION: "europe-west1"
+MAX_NUM_WORKERS: 1
+NUM_WORKERS: 1
+WORKER_REGION: 'europe-west1'
+MACHINE_TYPE: 'n1-standard-1'
+DISK_SIZE_GB: 10
+RUNNER: "DataflowRunner" # DirectRunner DataflowRunner
+
+DATABASES:
+  NAME: "cmd-stream-test"
+  TOPIC: "gcs_cmd_stream_test" 
