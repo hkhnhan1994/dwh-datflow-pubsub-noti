@@ -1,0 +1,66 @@
+JOB_NAME: cmd-stream
+PIPELINE_ENABLE: true
+SUBSCRIBER: gcs_cmd_stream_test-sub
+STAGING_LOCATION: "gs://test_bucket_upvn/datastream-postgres/Beam-pubsub/staging"
+TEMP_LOCATION: "gs://test_bucket_upvn/datastream-postgres/Beam-pubsub/temp"
+PROJECT: "pj-bu-dw-data-sbx"
+REGION: "europe-west1"
+MAX_NUM_WORKERS: 1
+NUM_WORKERS: 1
+WORKER_REGION: 'europe-west1'
+MACHINE_TYPE: 'n1-standard-1'
+DISK_SIZE_GB: 10
+RUNNER: "DataflowRunner" # DirectRunner DataflowRunner
+
+CDC:
+  RAW_SCHEMA:
+    WHITELISTS:
+      - read_timestamp
+      - source_metadata
+      - payload
+    DROPLISTS: # drop columns after flattening
+      - tx_id
+      - lsn 
+WINDOWING_TIME: 30 #seconds
+
+BQ_DATALAKE_CONFIG:
+  PROJECT: pj-bu-dw-data-sbx
+  DATASET: lake_view_cmd
+  WHITELIST_TABLES:
+  - NAME: dwh_legal_entities
+    ADDITIONAL_INFO:
+      clustering: null
+      timePartitioning: null
+  - NAME: dwh_legal_entity_addresses
+    ADDITIONAL_INFO:
+      clustering: null
+      timePartitioning: null
+  - NAME: dwh_legal_entity_payment_accounts
+    ADDITIONAL_INFO:
+      clustering: null
+      timePartitioning: null
+  - NAME: dwh_payment_accounts
+    ADDITIONAL_INFO:
+      clustering: null
+      timePartitioning: null
+  - NAME: dwh_natural_person_payment_accounts
+    ADDITIONAL_INFO:
+      clustering: null
+      timePartitioning: null
+  - NAME: dwh_natural_persons
+    ADDITIONAL_INFO:
+      clustering: null
+      timePartitioning: null
+  - NAME: dwh_natural_person_addresses
+    ADDITIONAL_INFO:
+      clustering: null
+      timePartitioning: null
+  - NAME: dwh_entity_roles
+    ADDITIONAL_INFO:
+      clustering: null
+      timePartitioning: null
+  - NAME: dwh_entity_role_properties
+    ADDITIONAL_INFO:
+      clustering: null
+      timePartitioning: null
+

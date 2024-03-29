@@ -1,0 +1,84 @@
+{
+  "fields": [
+    {
+      "mode": "NULLABLE",
+      "name": "read_timestamp",
+      "type": "TIMESTAMP"
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "schema",
+      "type": "STRING"
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "table",
+      "type": "STRING"
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "is_deleted",
+      "type": "BOOLEAN"
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "change_type",
+      "type": "STRING"
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "primary_keys",
+      "type": "STRING"
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "id",
+      "type": "INTEGER"
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "public_identifier",
+      "type": "STRING"
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "legal_entity_public_identifier",
+      "type": "STRING"
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "payment_account_public_identifier",
+      "type": "STRING"
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "creation_timestamp",
+      "type": "TIMESTAMP"
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "last_update_timestamp",
+      "type": "TIMESTAMP"
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "role",
+      "type": "STRING"
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "started_timestamp",
+      "type": "TIMESTAMP"
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "ended_timestamp",
+      "type": "TIMESTAMP"
+    },
+    {
+      "mode": "NULLABLE",
+      "name": "process_timestamp",
+      "type": "TIMESTAMP"
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+recursive-include datalake/*.json
+recursive-include data_warehouse/*.yml
