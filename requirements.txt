@@ -5,3 +5,4 @@ PyYAML==6.0.1
 setuptools==40.8.0
 google-cloud
 google-cloud-pubsub
+'apache-beam[gcp]'
