@@ -1,11 +1,13 @@
 from apache_beam.options.pipeline_options import SetupOptions, GoogleCloudOptions, WorkerOptions, StandardOptions
 import logging
 import apache_beam as beam
-from util import  schema, file
 from apache_beam import coders
+from datalake  import beamSQL_schema
 from apache_beam.transforms.sql import SqlTransform
+import json
+# print = logging.info
 config ={
-    "JOB_NAME": "cmd-stream",
+    "JOB_NAME": "cmd-stream-1",
     "PIPELINE_ENABLE": True,
     "SUBSCRIBER": "gcs_cmd_stream_test-sub",
     "STAGING_LOCATION": "gs://test_bucket_upvn/datastream-postgres/Beam-pubsub/staging",
@@ -17,7 +19,7 @@ config ={
     "WORKER_REGION": 'europe-west1',
     "MACHINE_TYPE": 'n1-standard-1',
     "DISK_SIZE_GB": 10,
-    "RUNNER": "DataflowRunner", # DirectRunner DataflowRunner
+    "RUNNER": "DirectRunner", # DirectRunner DataflowRunner
 }
 def apply_option(options,config):
     options.from_dictionary(options.get_all_options())
@@ -35,28 +37,28 @@ def apply_option(options,config):
     options.view_as(StandardOptions).streaming=True
     return options
 
-
-gcs_notification_message=schema.convert_nametuple(file.get_schema('datalake','gcs_notification_message'), 'gcs_notification_message')
-coders.registry.register_coder(gcs_notification_message, coders.RowCoder)
+def is_file(mess):
+    return mess['name'] == ('%.jsonl' or '%.jsonl.gz')
 def dwh_run(options):
     p= beam.Pipeline(options=apply_option(options,config))
-    read_noti_from_pubsub = (
+    notifications = (
             p
-             | "read gcs noti" >> beam.io.ReadFromPubSub(subscription="projects/pj-bu-dw-data-sbx/subscriptions/gcs_noti_sub")
-            #  | "schema writer" >> beam.Map(lambda x: gcs_notification_message(**x)).with_output_types(gcs_notification_message)
-             | "schema writer" >> beam.Map(lambda x:x).with_output_types(gcs_notification_message)
+             | "read gcs noti" >> beam.io.ReadFromPubSub(subscription="projects/pj-bu-dw-data-sbx/subscriptions/gcs_noti_sub").with_output_types(bytes)
+            #  | "decoding" >> beam.Map(lambda x:x.decode('utf-8'))
+             | "to json" >> beam.Map(json.loads)
+             | "schema writer" >> beam.Map(lambda x: beamSQL_schema.gcs_notification_message(**x)).with_output_types(beamSQL_schema.gcs_notification_message)
+            | "query the name" >> beam.Filter(lambda mess: '.jsonl' or '.jsonl.gz'  in mess.name.lower())
+            
+            #  | "query the name" >> SqlTransform(dialect='zetasql',query="SELECT name FROM PCOLLECTION")
+            | beam.Map(print)
         )
-    find_json_file =(
-        {"read_noti_from_pubsub":read_noti_from_pubsub}
-         | "query the name" >> SqlTransform(dialect='zetasql',query="SELECT name FROM read_noti_from_pubsub")
-         | beam.Map(print)
-    )
+
     result = p.run()
     result.wait_until_finish()
 
 if __name__ == '__main__':
     options = GoogleCloudOptions()
-    options.view_as(SetupOptions).save_main_session = True
+    options.view_as(SetupOptions).save_main_session = True  
     options.view_as(SetupOptions).setup_file= './setup.py'
     # Run the pipeline.
     logging.getLogger(__name__).setLevel(logging.INFO)
