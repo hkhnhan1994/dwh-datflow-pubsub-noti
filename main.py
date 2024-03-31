@@ -19,7 +19,7 @@ config ={
     "WORKER_REGION": 'europe-west1',
     "MACHINE_TYPE": 'n1-standard-1',
     "DISK_SIZE_GB": 10,
-    "RUNNER": "DirectRunner", # DirectRunner DataflowRunner
+    "RUNNER": "DataflowRunner", # DirectRunner DataflowRunner
 }
 def apply_option(options,config):
     options.from_dictionary(options.get_all_options())
