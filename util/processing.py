@@ -160,3 +160,16 @@ def check_membership_and_update(source_list, current_list):
   missing_members = set(source_list) - set(current_list)
   extra_members = set(current_list) - set(source_list)
   return missing_members, extra_members
+
+
+
+######## New lib
+
+def convert_to_string(data):
+    if isinstance(data, list):
+        return [convert_to_string(item) for item in data]
+    elif isinstance(data, dict):
+        return {key: convert_to_string(value) for key, value in data.items()}
+    else:
+        return str(data)
+    
