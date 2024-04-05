@@ -1,7 +1,8 @@
 README.md
 setup.py
 datalake/__init__.py
-datalake/beamSQL_schema.py
+datalake/schema_beamSQL/__init__.py
+datalake/schema_beamSQL/schema.py
 etl.egg-info/PKG-INFO
 etl.egg-info/SOURCES.txt
 etl.egg-info/dependency_links.txt

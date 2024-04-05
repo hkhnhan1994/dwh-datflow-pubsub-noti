@@ -2,7 +2,6 @@
 from google.cloud import pubsub_v1
 import logging
 
-
 print = logging.info
 
 def getTopic(
