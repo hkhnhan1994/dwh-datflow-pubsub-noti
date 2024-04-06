@@ -23,7 +23,6 @@ class transform_raw_data(beam.PTransform):
         )
         # to_dataframe  = convert.to_dataframe(data)
 
-
 class transform_datalake(beam.PTransform):
     def __init__(self,table_config,schema,datalake_config):
         self.table_config= table_config
