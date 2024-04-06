@@ -1,4 +1,4 @@
-config ={
+beam_config={
     "job_name": "cmd-stream",
     "staging_location": "gs://test_bucket_upvn/datastream-postgres/Beam-pubsub/staging",
     "temp_location": "gs://test_bucket_upvn/datastream-postgres/Beam-pubsub/temp",
@@ -14,3 +14,14 @@ config ={
     "save_main_session" : True,
     "streaming":True
 }
+
+gcs_datalake ={
+    "pucket": "test_bucket_upvn",
+    "sub_folder": "datastream-postgres/datastream",
+    "project": "pj-bu-dw-data-sbx",
+    "region": "europe-west1",
+}
+
+WHITELISTED_TABLES = [
+    "dwh_entity_role_properties"
+]

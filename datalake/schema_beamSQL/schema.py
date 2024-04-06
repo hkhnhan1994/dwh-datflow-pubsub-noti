@@ -1,6 +1,12 @@
 from apache_beam import coders
 from typing import NamedTuple, Sequence, Optional
 
+class test_data(NamedTuple):
+    kind: Optional[str]
+    id: Optional[str]
+    size: Optional[str]
+    name: Optional[str]
+
 class gcs_notification_message(NamedTuple):
     kind: Optional[str]
     id: Optional[str]
@@ -8,7 +14,7 @@ class gcs_notification_message(NamedTuple):
     name: Optional[str]
     bucket: Optional[str]
     generation: Optional[str] 
-    metageneration: int
+    metageneration: Optional[str] 
     contentType: Optional[str] 
     timeCreated: Optional[str] 
     updated: Optional[str]

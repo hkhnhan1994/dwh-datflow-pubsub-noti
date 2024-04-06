@@ -1,2 +1,4 @@
+config
 datalake
+pipelines
 util
