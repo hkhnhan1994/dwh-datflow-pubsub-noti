@@ -1,10 +1,7 @@
 README.md
 setup.py
 config/__init__.py
-config/notification/__init__.py
-config/notification/dev.py
-config/pipeline/__init__.py
-config/pipeline/dev.py
+config/dev.py
 datalake/__init__.py
 datalake/schema_beamSQL/__init__.py
 datalake/schema_beamSQL/schema.py
@@ -14,7 +11,8 @@ etl.egg-info/dependency_links.txt
 etl.egg-info/requires.txt
 etl.egg-info/top_level.txt
 pipelines/__init__.py
-pipelines/datawarehouse.py
+pipelines/datalake.py
+pipelines/pipeline.py
 pipelines/pubsub_noti_files.py
 util/__init__.py
 util/file.py

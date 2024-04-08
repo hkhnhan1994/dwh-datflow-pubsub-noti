@@ -1,5 +1,5 @@
 beam_config={
-    "job_name": "cmd-stream",
+    "job_name": "cmd-stream-1",
     "staging_location": "gs://test_bucket_upvn/datastream-postgres/Beam-pubsub/staging",
     "temp_location": "gs://test_bucket_upvn/datastream-postgres/Beam-pubsub/temp",
     "project": "pj-bu-dw-data-sbx",
