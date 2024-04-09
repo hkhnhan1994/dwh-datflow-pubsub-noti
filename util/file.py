@@ -1,6 +1,6 @@
 import os
 import json
-def get_schema(path: str,table: str) -> dict:
+def read_content_json(path: str,table: str) -> dict:
     """Get the table model.
 
     :return: Table model. Return a dictionary containing a definition of a table
@@ -13,3 +13,6 @@ def get_schema(path: str,table: str) -> dict:
     ) as f:
         d = json.load(f)
     return d
+
+def get_schema_datalake(domain,table):
+    return read_content_json(f"datalake/schema/{domain}",table)

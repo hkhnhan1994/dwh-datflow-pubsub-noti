@@ -1,0 +1,7 @@
+{
+    "cdc_uuid": "str",
+    "cdc_read_timestamp": "Timestamp",
+    "cdc_source_timestamp": "Timestamp",
+    "cdc_object": "str",
+    "cdc_read_method": "str"
+}
