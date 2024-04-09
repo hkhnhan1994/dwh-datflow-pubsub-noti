@@ -1,0 +1,9 @@
+{
+    "id": "int",
+    "public_identifier": "str",
+    "creation_timestamp": "Timestamp",
+    "last_update_timestamp": "Timestamp",
+    "entity_role_public_identifier": "str",
+    "property_type": "str",
+    "property_value": "str"
+}

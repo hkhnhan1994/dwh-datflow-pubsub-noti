@@ -1,0 +1,6 @@
+{
+    "meta_data_schema": "str",
+    "meta_data_table": "str",
+    "meta_data_is_deleted": "str",
+    "meta_data_change_type": "str"
+}

@@ -1,11 +1,6 @@
 # import logging
 import apache_beam as beam
-from datalake.schema_beamSQL.schema  import (
-    gcs_notification_message,
-    )
 import json
-# import io, gzip
-# from google.cloud import storage
 # print = logging.info
 
 class pubsub_noti_messages(beam.PTransform):
@@ -18,8 +13,6 @@ class pubsub_noti_messages(beam.PTransform):
             return "gs://"+element['bucket']+"/"+element['name']
         messages = (
                 pcoll
-                # | "read gcs noti" >> beam.io.ReadFromText('/home/hkhnhan/Code/dwh-datflow-pubsub-noti/dwh_entity_role_properties.jsonl')
-                # | "read gcs noti" >> beam.io.ReadFromPubSub(subscription="projects/pj-bu-dw-data-sbx/subscriptions/gcs_noti_sub").with_output_types(bytes)
                 # | "read gcs noti" >> beam.io.ReadFromPubSub(subscription=self.subscription_path).with_output_types(bytes) 
                 | "read gcs noti" >> beam.io.ReadFromText('/home/hkhnhan/Code/dwh-datflow-pubsub-noti/pubsub_noti.jsonl')
                 | beam.Map(lambda x: x.encode('utf-8')).with_output_types(bytes)
@@ -36,3 +29,27 @@ class pubsub_noti_messages(beam.PTransform):
         )
         return  data
 
+class classify_table(beam.PTransform):
+    def __init__(self,table_name):
+        self.table_name=table_name
+    def expand(self, pcoll):
+        def filter(element,table_name):
+            return element['source_metadata']['table'] == table_name
+        data = (
+                pcoll
+                | beam.Map(json.loads)
+                | beam.Filter(filter, self.table_name)
+        )
+        return  data
+
+
+
+
+
+'''
+treat payload as a string
+load data into schema =>
+load and get the metadata
+classify by table name
+add the schema once again 
+'''

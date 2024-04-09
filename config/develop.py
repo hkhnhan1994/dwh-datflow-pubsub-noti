@@ -15,13 +15,14 @@ beam_config={
     "streaming":True
 }
 
-gcs_datalake ={
-    "pucket": "test_bucket_upvn",
-    "sub_folder": "datastream-postgres/datastream",
-    "project": "pj-bu-dw-data-sbx",
-    "region": "europe-west1",
+pipeline_config ={
+    "CMD":{
+        "datalake":{
+            "WHITELISTED_TABLES":[
+                'cdc_metadata', # for cdc datastream metadata
+                'source_metadata',# for cdc datastream metadata
+                'dwh_entity_role_properties',
+                ],
+        }
+    },
 }
-
-WHITELISTED_TABLES = [
-    "dwh_entity_role_properties"
-]

@@ -1,5 +1,6 @@
 {
   "fields": [
+    
     {
       "mode": "NULLABLE",
       "name": "read_timestamp",
