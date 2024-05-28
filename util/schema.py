@@ -1,7 +1,7 @@
 from apache_beam import coders
 from typing import NamedTuple, Sequence, Optional
 from apache_beam.utils.timestamp import Timestamp
-from file import get_schema_datalake
+from .file import get_schema_datalake
 from config.develop import pipeline_config
 # CDC metadata schema
 def create_nametuple_schema(*schemas,table_name):
