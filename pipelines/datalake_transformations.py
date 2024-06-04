@@ -11,7 +11,6 @@ from apache_beam.io.gcp.bigquery import WriteToBigQuery
 import datetime
 import hashlib
 # print = logging.info
-
 test_path='datastream-postgres/datastream/cmd_test/public_dwh_entity_role_properties/2024/05/22/08/40/7bb32d069d36f7728b1ca66f812bb4ff24413219_postgresql-backfill_-96622484_0_771.avro'
 simulate_pubsub_mess={
   "name": test_path,
