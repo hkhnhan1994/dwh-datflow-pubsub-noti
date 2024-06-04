@@ -21,7 +21,7 @@ def apply_option(options,config):
     options.view_as(WorkerOptions).machine_type = config["MACHINE_TYPE"]
     options.view_as(WorkerOptions).disk_size_gb = config["DISK_SIZE_GB"]
     options.view_as(StandardOptions).runner=config["RUNNER"]
-    options.view_as(StandardOptions).streaming=True
+    # options.view_as(StandardOptions).streaming=True
     return options
 def get_pcollections_tables(domain,whitelist_tables):
     schemas={}

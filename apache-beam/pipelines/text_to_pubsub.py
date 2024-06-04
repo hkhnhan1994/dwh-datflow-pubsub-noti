@@ -53,7 +53,7 @@ def run(options, env):
     
     # options.view_as(StandardOptions).runner="DirectRunner"
     options.view_as(StandardOptions).runner=pubsub_config_info["RUNNER"]
-    options.view_as(StandardOptions).streaming=True
+    # options.view_as(StandardOptions).streaming=True
     
     # options.from_dictionary(options.get_all_options())
     options.view_as(GoogleCloudOptions).job_name=pubsub_config_info["JOB_NAME"]

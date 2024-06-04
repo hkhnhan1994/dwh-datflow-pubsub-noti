@@ -2,14 +2,13 @@
 import logging
 import apache_beam as beam
 from .datalake_transformations import  gcs_arvo_processing, write_to_BQ
-import json
-from util.schema import read_datalake_schema, register_beam_coder
+# from util.schema import read_datalake_schema, register_beam_coder
 # print = logging.info
 
-datalake_schema=read_datalake_schema()
-for domain,tables  in datalake_schema.items():
-    for table, schema in tables.items():
-        register_beam_coder(schema)
+# datalake_schema=read_datalake_schema()
+# for domain,tables  in datalake_schema.items():
+#     for table, schema in tables.items():
+#         register_beam_coder(schema)
 # print(datalake_schema)
 
 def run(beam_options):
@@ -18,7 +17,7 @@ def run(beam_options):
         message_file_path = (
             p
                 | gcs_arvo_processing("projects/pj-bu-dw-data-sbx/subscriptions/gcs_noti_sub")
-                | write_to_BQ()
+                # | write_to_BQ()
                 | beam.Map(print)
         )
         # tables = (
