@@ -49,8 +49,9 @@ class read_path(beam.PTransform):
         return get_message_contains_file_url
 # as a side input
 class arvo_schema_processing(beam.PTransform):
-    def __init__(self):
+    def __init__(self,ignore_fields):
             self.fs = GCSFileSystem(PipelineOptions())
+            self.ignore_fields =ignore_fields
     def expand(self, pcoll):
         def read_schema(element):
             with self.fs.open(path=str(element)) as f:
@@ -63,15 +64,24 @@ class arvo_schema_processing(beam.PTransform):
                 # return (json.dumps(parsed, indent=4, sort_keys=True))
                 return parsed
         def clean_unused_schema_fields(data, ignore_fields):
-            def remove_fields_helper(data):
-                if isinstance(data, dict):
-                    return {key: remove_fields_helper(value) for key, value in data.items() if key not in ignore_fields}
-                elif isinstance(data, list):
-                    return [remove_fields_helper(item) for item in data]
-                else:
-                    return data
-            # Use the helper function to clean the schema data
-            return remove_fields_helper(data)
+            def should_ignore(field, parent):
+                full_name = f"{parent}.{field}" if parent else field
+                return full_name in ignore_fields
+
+            def process_fields(fields, parent=""):
+                result = []
+                for field in fields:
+                    name = field["name"]
+                    if should_ignore(name, parent):
+                        continue
+
+                    if "type" in field and isinstance(field["type"], dict) and "fields" in field["type"]:
+                        field["type"]["fields"] = process_fields(field["type"]["fields"], f"{parent}.{name}" if parent else name)
+                    result.append(field)
+                return result
+
+            data["fields"] = process_fields(data["fields"])
+            return data
         def flatten_schema(data):
             new_fields = []
             new_fields.append({"name": "ingestion_meta_data_processing_timestamp", "type": ["null", {"type": "long", "logicalType": "timestamp-micros"}]})
@@ -95,13 +105,14 @@ class arvo_schema_processing(beam.PTransform):
         schema = ( # data must be in Arvo format
             pcoll
             |"read schema from arvo file" >> beam.Map(read_schema)
-            |"remove unused schema fields" >> beam.Map(clean_unused_schema_fields,ignore_fields)
+            |"remove unused schema fields" >> beam.Map(clean_unused_schema_fields,self.ignore_fields)
             |"flatten schema" >> beam.Map(flatten_schema)
-            |"convert to BQ schema" >> beam.Map(flatten_schema)
             |"dumps to json" >> beam.Map(lambda x: json.dumps(x, sort_keys =True).encode())
         )
         return schema
 class read_arvo_content(beam.PTransform):
+    def __init__(self,ignore_fields):
+            self.ignore_fields =ignore_fields
     def expand(self, pcoll):
         def remove_elements(data, removelist):
             def recursive_remove(data, keys):
@@ -148,13 +159,13 @@ class read_arvo_content(beam.PTransform):
         data = ( # data must be in Arvo format
             pcoll
             | beam.io.ReadAllFromAvro()
-            | "remove unrelated fields" >> beam.Map(remove_elements,ignore_fields)
+            | "remove unrelated fields" >> beam.Map(remove_elements,self.ignore_fields)
             | "calculate row hash on payload" >>  beam.Map(calculate_hash_payload)
             | "flatten data" >> beam.Map(flatten_data)
         )
         return data
 class gcs_arvo_processing(beam.PTransform):
-    def __init__(self, subscription_path,project ='pj-bu-dw-data-sbx',data_set ='lake_view_cmd'):
+    def __init__(self, subscription_path =[],project ='pj-bu-dw-data-sbx',data_set ='lake_view_cmd'):
         self.subscription_path=subscription_path
         self.project=project
         self.data_set=data_set
@@ -316,7 +327,7 @@ class gcs_arvo_processing(beam.PTransform):
             #         description=avro_field.get("doc"),
             #         fields=fields,
             #     )
-            return tuple(map(lambda f: _convert_field(f), avro_schema["fields"]))
+            return {"fields":list(map(lambda f: _convert_field(f), avro_schema["fields"]))}
         def checking_null_type (json_schema):
             null_type = []
             for field in json_schema['fields']:
@@ -327,11 +338,12 @@ class gcs_arvo_processing(beam.PTransform):
         path =(
             pcoll|"read file path from pubsub" >> read_path(self.subscription_path)
         )
-        data = (path|"arvo data processing" >> read_arvo_content())
+        data = (path|"arvo data processing" >> read_arvo_content(ignore_fields))
          # get schema
         bq_schema = (
             path
-            |"arvo schema processing" >> arvo_schema_processing()
+            |"arvo schema processing" >> arvo_schema_processing(ignore_fields)
+            |beam.Map(lambda x: json.loads(x))
             |"convert arvo schema to BQ schema" >> beam.Map(convert_bq_schema)
             |"error checking" >> beam.Map(checking_null_type)
             )
