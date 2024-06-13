@@ -4,7 +4,7 @@ import json
 from avro.datafile import DataFileReader
 from avro.io import DatumReader
 import io
-from apache_beam.pvalue import AsIter, AsDict, AsSingleton
+from apache_beam.pvalue import AsIter, AsDict
 from apache_beam.io.gcp.gcsfilesystem import GCSFileSystem
 from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.io.gcp.bigquery import WriteToBigQuery
@@ -12,7 +12,14 @@ from apache_beam.transforms.window import FixedWindows
 import datetime
 import hashlib
 import logging
-print = logging.info
+# print = logging.info
+test_path='datastream-postgres/datastream/cmd_test/public_dwh_entity_role_properties/2024/05/22/08/40/7bb32d069d36f7728b1ca66f812bb4ff24413219_postgresql-backfill_-96622484_0_771.avro'
+simulate_pubsub_mess={
+  "name": test_path,
+  "size": "1234",
+  "bucket": "test_bucket_upvn",
+}
+mess=json.dumps(simulate_pubsub_mess, indent = 4) 
 
 ignore_fields =[
     'stream_name',
@@ -29,11 +36,11 @@ class read_path(beam.PTransform):
         def filter(element):
             return element['size'] != '0'
         def path_former(element):
-            print("get: gs://"+element['bucket']+"/"+element['name'])
             return "gs://"+element['bucket']+"/"+element['name']
         messages = (
                 pcoll 
-                | "read gcs noti" >> beam.io.ReadFromPubSub(subscription=self.subscription_path).with_output_types(bytes) 
+                # | "read gcs noti" >> beam.io.ReadFromPubSub(subscription=self.subscription_path).with_output_types(bytes) 
+                | "Create data" >> beam.Create([mess])
         )
         # checking if pub/sub message contained any files
         get_message_contains_file_url =(
@@ -60,7 +67,6 @@ class arvo_schema_processing(beam.PTransform):
                 # return (json.dumps(parsed, indent=4, sort_keys=True))
                 return parsed
         def clean_unused_schema_fields(data, ignore_fields):
-            print("schema process for table {}".format(data["name"]))
             def should_ignore(field, parent):
                 full_name = f"{parent}.{field}" if parent else field
                 return full_name in ignore_fields
@@ -234,9 +240,17 @@ class arvo_schema_processing(beam.PTransform):
                     "name": avro_field.get("name"),
                     "type": field_type,
                     "mode": mode,
+                    # "fields":fields if len(fields)>0 else None,
                 }
-            output_schema = {"fields":list(map(lambda f: _convert_field(f), avro_schema["fields"]))}
-            return output_schema
+                
+                # return bigquery.SchemaField(
+                #         avro_field.get("name"),
+                #         field_type,
+                #         mode=mode,
+                #         description=avro_field.get("doc"),
+                #         fields=fields,
+                #     )
+            return {"fields":list(map(lambda f: _convert_field(f), avro_schema["fields"]))}
             
         schema = ( # data must be in Arvo format
             pcoll
@@ -244,6 +258,7 @@ class arvo_schema_processing(beam.PTransform):
             |"remove unused schema fields" >> beam.Map(clean_unused_schema_fields,self.ignore_fields)
             |"flatten schema" >> beam.Map(flatten_schema)
             |"convert arvo schema to BQ schema" >> beam.Map(convert_bq_schema)
+            # |"dumps to json" >> beam.Map(lambda x: json.dumps(x).encode())
         )
         return schema
 class read_arvo_content(beam.PTransform):
@@ -268,6 +283,7 @@ class read_arvo_content(beam.PTransform):
         def flatten_data(data):
             def convert_data(value):
                 if isinstance(value, datetime.datetime):
+                    # return value.strftime('%Y-%m-%d %H:%M:%S.%f UTC')
                     return value
                 elif isinstance(value,list):
                     return str(value)
@@ -284,8 +300,8 @@ class read_arvo_content(beam.PTransform):
                         flattened_data[f"source_metadata_{sub_key}"] = convert_data(sub_value)
                 else:
                     flattened_data[f"ingestion_meta_data_{key}"] = convert_data(value)
-            print("processing data for table {}".format(flattened_data["source_metadata_table"]))
             return flattened_data
+            # return flattened_data
         # Function to calculate the hash of a record
         def calculate_hash_payload(data):
             # You can modify the hashing function and encoding as needed
@@ -293,6 +309,7 @@ class read_arvo_content(beam.PTransform):
             record_hash = hashlib.sha256(record_str.encode('utf-8')).hexdigest()
             data['payload']['row_hash'] = record_hash
             return data
+        
         data = ( # data must be in Arvo format
             pcoll
             | beam.io.ReadAllFromAvro()
@@ -310,12 +327,12 @@ class gcs_arvo_processing(beam.PTransform):
     def expand(self, pcoll):
         class reorder_data_based_on_schema(beam.DoFn):
             def process(self, element, schema):
-                print("reorder data table {}".format(element["source_metadata_table"]))
                 def checking_null_type (json_schema):
                     null_type = []
                     for field in json_schema['fields']:
                         if (field['type'] is None):
                             null_type.append(field['name'])
+                    # print( f"null columns: {null_type}" )
                     if len(null_type)>0: 
                         raise ReferenceError(f"having null in type: {null_type}")
                     else:  
@@ -333,25 +350,19 @@ class gcs_arvo_processing(beam.PTransform):
                         yield (reorder_json(element,sch),json.dumps(sch))
                     else:
                         raise ReferenceError(f"having null in type")
+                # yield (element, schema)
         path =(
             pcoll|"read file path from pubsub" >> read_path(self.subscription_path)
         )
-        data = (path
-                |"arvo data processing" >> read_arvo_content(ignore_fields)
-                | "w1" >> beam.WindowInto(FixedWindows(10))
-                )
+        data = (path|"arvo data processing" >> read_arvo_content(ignore_fields))
          # get schema
         bq_schema = (
             path
             |"arvo schema processing" >> arvo_schema_processing(ignore_fields)
-            | "w2" >> beam.WindowInto(FixedWindows(10))
-            # |beam.Map(print)
             )
         result = (
             data
-            | "w3" >> beam.WindowInto(FixedWindows(10))
             | 'reorder data based on schema' >> beam.ParDo( reorder_data_based_on_schema(),AsIter(bq_schema))
-            
         )
         
         return result
@@ -360,22 +371,121 @@ class write_to_BQ(beam.PTransform):
         self.project=project
         self.data_set=data_set
     def expand(self, pcoll):
+        
+        default_schema ={
+            "fields": [
+                {
+                "name": "ingestion_meta_data_processing_timestamp",
+                "type": "TIMESTAMP",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "ingestion_meta_data_uuid",
+                "type": "STRING",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "ingestion_meta_data_read_timestamp",
+                "type": "TIMESTAMP",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "ingestion_meta_data_source_timestamp",
+                "type": "TIMESTAMP",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "ingestion_meta_data_object",
+                "type": "STRING",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "ingestion_meta_data_read_method",
+                "type": "STRING",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "source_metadata_schema",
+                "type": "STRING",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "source_metadata_table",
+                "type": "STRING",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "source_metadata_is_deleted",
+                "type": "BOOL",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "source_metadata_change_type",
+                "type": "STRING",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "source_metadata_primary_keys",
+                "type": "STRING",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "id",
+                "type": "INTEGER",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "public_identifier",
+                "type": "STRING",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "creation_timestamp",
+                "type": "TIMESTAMP",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "last_update_timestamp",
+                "type": "TIMESTAMP",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "entity_role_public_identifier",
+                "type": "STRING",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "property_type",
+                "type": "STRING",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "property_value",
+                "type": "STRING",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "row_hash",
+                "type": "STRING",
+                "mode": "NULLABLE"
+                },
+                # {
+                # "name": "ingestion_meta_data_bq_schema",
+                # "type": "STRING",
+                # "mode": "NULLABLE"
+                # }
+            ]
+            }
         def get_schema(element, project, data_set):
-            print("loading data to table {}:{}.{}".format(project,data_set,element[0]['source_metadata_table']))
             return (f"{project}:{data_set}.{element[0]['source_metadata_table']}",json.loads(element[1]))
-        bq_schema=AsDict(pcoll 
-                         | "w4" >> beam.WindowInto(FixedWindows(10))
-                         |beam.Map(get_schema,self.project,self.data_set) 
-                         | "w5" >> beam.WindowInto(FixedWindows(10))
-                         )
+        bq_schema=AsDict(pcoll |beam.Map(get_schema,self.project,self.data_set) )
         data =(
             pcoll
             | beam.Map(lambda x: x[0])
-            | "w6" >> beam.WindowInto(FixedWindows(10))
+            | "fixed windows 10sec for slowly side input" >> beam.WindowInto(FixedWindows(10))
         )
         to_BQ =(
             data          
-            | "w7" >> beam.WindowInto(FixedWindows(10))
             |WriteToBigQuery(
                 table=lambda x: "{}:{}.{}".format(self.project,self.data_set,x['source_metadata_table']),
                 schema= lambda schema ,bq_schema:bq_schema[schema] ,
@@ -383,21 +493,23 @@ class write_to_BQ(beam.PTransform):
                 write_disposition='WRITE_APPEND',
                 create_disposition='CREATE_IF_NEEDED',
                 insert_retry_strategy='RETRY_ON_TRANSIENT_ERROR',
-                temp_file_format='AVRO',
+                # temp_file_format=bigquery_tools.FileFormat.AVRO,
                 method= WriteToBigQuery.Method.STREAMING_INSERTS,
-                # additional_bq_parameters = {
-                # #   'timePartitioning': {'type': 'DAY'},
-                # #   'clustering': {'fields': ['country']}
-                #   'schemaUpdateOptions': [
-                #         'ALLOW_FIELD_ADDITION',
-                #         'ALLOW_FIELD_RELAXATION',
-                #     ]
-                #   }
+                additional_bq_parameters = {
+                #   'timePartitioning': {'type': 'DAY'},
+                #   'clustering': {'fields': ['country']}
+                  'schemaUpdateOptions': [
+                        'ALLOW_FIELD_ADDITION',
+                        'ALLOW_FIELD_RELAXATION',
+                    ]
+                  }
                 # with_auto_sharding=True,
-                # kms_key,,
+                # kms_key= self.Option['CREATE_DISPOSITION'],
+                # method='STREAMING_INSERTS',) 
             )
         )
         # Chaining of operations after WriteToBigQuery(https://beam.apache.org/releases/pydoc/2.54.0/apache_beam.io.gcp.bigquery.html?highlight=writetobigquery)
+        
         error_schema = {'fields': [
                 {'name': 'destination', 'type': 'STRING', 'mode': 'NULLABLE'},
                 {'name': 'row', 'type': 'STRING', 'mode': 'NULLABLE'},
