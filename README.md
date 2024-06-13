@@ -2,7 +2,7 @@
 
 ## create a notificaton gcs pubsub
 ```Command:
-    gcloud storage buckets notifications create gs://test_bucket_upvn --topic=projects/pj-bu-dw-data-sbx/topics/gcs_noti -p datastream-postgres/datastream
+    gcloud storage buckets notifications create gs://test_bucket_upvn --topic=projects/pj-bu-dw-data-sbx/topics/gcs_noti -p datastream-postgres/datastream/cmd_test
 ```
 ## check mptofocatopm gcs pubsub
 ```
