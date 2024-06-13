@@ -3,8 +3,8 @@ import logging
 from config.develop import beam_config
 from pipelines.pipeline import run
 
-from apache_beam.options.pipeline_options import SetupOptions, GoogleCloudOptions
-from apache_beam.options.pipeline_options import GoogleCloudOptions, WorkerOptions, StandardOptions
+# from apache_beam.options.pipeline_options import SetupOptions, GoogleCloudOptions
+# from apache_beam.options.pipeline_options import GoogleCloudOptions, WorkerOptions, StandardOptions
 
 if __name__ == '__main__':
     # Run the pipeline.

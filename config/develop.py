@@ -12,7 +12,7 @@ beam_config={
     "runner": "DirectRunner", # DirectRunner DataflowRunner
     "setup_file": './setup.py',
     "save_main_session" : True,
-    # "streaming":True
+    "streaming":True
 }
 
 pipeline_config ={

@@ -4,12 +4,14 @@ import json
 from avro.datafile import DataFileReader
 from avro.io import DatumReader
 import io
-from apache_beam.pvalue import AsSideInput, AsDict, AsList
+from apache_beam.pvalue import AsSingleton, AsIter, AsDict
 from apache_beam.io.gcp.gcsfilesystem import GCSFileSystem
 from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.io.gcp.bigquery import WriteToBigQuery
+from apache_beam.transforms.window import FixedWindows, GlobalWindow
 import datetime
 import hashlib
+import logging
 # print = logging.info
 test_path='datastream-postgres/datastream/cmd_test/public_dwh_entity_role_properties/2024/05/22/08/40/7bb32d069d36f7728b1ca66f812bb4ff24413219_postgresql-backfill_-96622484_0_771.avro'
 simulate_pubsub_mess={
@@ -26,6 +28,7 @@ ignore_fields =[
     'source_metadata.tx_id',
     'source_metadata.lsn',
 ]
+    
 class read_path(beam.PTransform):
     def __init__(self, subscription_path):
         self.subscription_path=subscription_path
@@ -100,84 +103,8 @@ class arvo_schema_processing(beam.PTransform):
                     prefixed_name = f"ingestion_meta_data_{field_name}"
                     field["name"] = prefixed_name
                     new_fields.append(field)
-            new_fields.append({"name": "row_hash", "type": ["null", {"type": "bytes"}]})
+            new_fields.append({"name": "row_hash", "type": ["null", {"type": "string"}]})
             return {"fields": new_fields}
-        schema = ( # data must be in Arvo format
-            pcoll
-            |"read schema from arvo file" >> beam.Map(read_schema)
-            |"remove unused schema fields" >> beam.Map(clean_unused_schema_fields,self.ignore_fields)
-            |"flatten schema" >> beam.Map(flatten_schema)
-            |"dumps to json" >> beam.Map(lambda x: json.dumps(x, sort_keys =True).encode())
-        )
-        return schema
-class read_arvo_content(beam.PTransform):
-    def __init__(self,ignore_fields):
-            self.ignore_fields =ignore_fields
-    def expand(self, pcoll):
-        def remove_elements(data, removelist):
-            def recursive_remove(data, keys):
-                if len(keys) == 1:
-                    data.pop(keys[0], None)
-                else:
-                    key = keys.pop(0)
-                    if key in data:
-                        recursive_remove(data[key], keys)
-                        if not data[key]:  # Remove the key if the sub-dictionary is empty
-                            data.pop(key)
-
-            for item in removelist:
-                keys = item.split('.')
-                recursive_remove(data, keys)
-            return data
-        def flatten_data(data):
-            def format_datetime(value):
-                if isinstance(value, datetime.datetime):
-                    return value.strftime('%Y-%m-%d %H:%M:%S.%f UTC')
-                else: return value
-            flattened_data = {}
-            flattened_data['ingestion_meta_data_processing_timestamp'] = format_datetime((datetime.datetime.now(datetime.timezone.utc))) 
-            for key, value in data.items():
-                if key == "payload":
-                    for payload_name,payload_val in value.items():
-                        value[payload_name] = format_datetime(payload_val)
-                    flattened_data.update(value)
-                elif key == "source_metadata":
-                    for sub_key, sub_value in value.items():
-                        flattened_data[f"source_metadata_{sub_key}"] = format_datetime(sub_value)
-                else:
-                    flattened_data[f"ingestion_meta_data_{key}"] = format_datetime(value)
-            return json.dumps(flattened_data,sort_keys =True).encode()
-            # return flattened_data
-        # Function to calculate the hash of a record
-        def calculate_hash_payload(data):
-            # You can modify the hashing function and encoding as needed
-            record_str = str(data['payload'])  # Convert record to string if necessary
-            record_hash = hashlib.sha256(record_str.encode('utf-8')).hexdigest()
-            data['payload']['row_hash'] = record_hash
-            return data
-        
-        data = ( # data must be in Arvo format
-            pcoll
-            | beam.io.ReadAllFromAvro()
-            | "remove unrelated fields" >> beam.Map(remove_elements,self.ignore_fields)
-            | "calculate row hash on payload" >>  beam.Map(calculate_hash_payload)
-            | "flatten data" >> beam.Map(flatten_data)
-        )
-        return data
-class gcs_arvo_processing(beam.PTransform):
-    def __init__(self, subscription_path =[],project ='pj-bu-dw-data-sbx',data_set ='lake_view_cmd'):
-        self.subscription_path=subscription_path
-        self.project=project
-        self.data_set=data_set
-    def expand(self, pcoll):
-        # cross join is used as an example.
-        # def cross_join_with_two_sides(left, rights1, rights2):
-        #     for x in rights1:
-        #         for y in rights2:
-        #             yield (left, x, y)
-        def cross_join_with_sides(left, rights):
-            for x in rights:
-                yield (left, x)
         # Function to convert JSON schema to BigQuery schema
         def convert_bq_schema(avro_schema):
             """
@@ -189,7 +116,7 @@ class gcs_arvo_processing(beam.PTransform):
             "record": "RECORD",
             "string": "STRING",
             "int": "INTEGER",
-            "boolean": "BOOL",
+            "boolean": "BOOLEAN",
             "double": "FLOAT",
             "float": "FLOAT",
             "long": "INT64",
@@ -198,9 +125,9 @@ class gcs_arvo_processing(beam.PTransform):
             # logical types
             "decimal": "FLOAT",
             "uuid": "STRING",
-            "date": "DATE",
-            "time-millis": "TIME",
-            "time-micros": "TIME",
+            "date": "TIMESTAMP",
+            "time-millis": "TIMESTAMP",
+            "time-micros": "TIMESTAMP",
             "timestamp-millis": "TIMESTAMP",
             "timestamp-micros": "TIMESTAMP",
             "varchar": "STRING",
@@ -238,8 +165,6 @@ class gcs_arvo_processing(beam.PTransform):
                     field_type = AVRO_TO_BIGQUERY_TYPES[avro_type]
 
                 return field_type, mode, fields
-
-
             def _convert_complex_type(avro_type):
                 """
                 Convert a Avro complex type to a BigQuery type
@@ -253,7 +178,7 @@ class gcs_arvo_processing(beam.PTransform):
                     field_type = "RECORD"
                     fields = tuple(map(lambda f: _convert_field(f), avro_type["fields"]))
                 elif avro_type["type"] == "array":
-                    mode = "REPEATED"
+                    mode =  "NULLABLE" #"REPEATED"
                     if "logicalType" in avro_type["items"]:
                         field_type = AVRO_TO_BIGQUERY_TYPES[
                             avro_type["items"]["logicalType"]
@@ -273,7 +198,6 @@ class gcs_arvo_processing(beam.PTransform):
                     else:
                         # simple array
                         field_type = AVRO_TO_BIGQUERY_TYPES[avro_type["items"]]
-                        # field_type = 'STRING'
                 elif avro_type["type"] == "enum":
                     field_type = AVRO_TO_BIGQUERY_TYPES[avro_type["type"]]
                 elif avro_type["type"] == "map":
@@ -300,8 +224,6 @@ class gcs_arvo_processing(beam.PTransform):
                 else:
                     raise ReferenceError(f"Unknown complex type {avro_type['type']}")
                 return field_type, fields, mode
-
-
             def _convert_field(avro_field):
                 """
                 Convert an Avro field to a BigQuery field
@@ -318,23 +240,117 @@ class gcs_arvo_processing(beam.PTransform):
                     "name": avro_field.get("name"),
                     "type": field_type,
                     "mode": mode,
-                    "fields":fields,
+                    # "fields":fields if len(fields)>0 else None,
                 }
-            # bigquery.SchemaField(
-            #         avro_field.get("name"),
-            #         field_type,
-            #         mode=mode,
-            #         description=avro_field.get("doc"),
-            #         fields=fields,
-            #     )
+                
+                # return bigquery.SchemaField(
+                #         avro_field.get("name"),
+                #         field_type,
+                #         mode=mode,
+                #         description=avro_field.get("doc"),
+                #         fields=fields,
+                #     )
             return {"fields":list(map(lambda f: _convert_field(f), avro_schema["fields"]))}
-        def checking_null_type (json_schema):
-            null_type = []
-            for field in json_schema['fields']:
-                if (field['type'] is None):
-                    null_type.append(field['name'])
-            print( f"null columns: {null_type}" )
-            return json_schema
+            
+        schema = ( # data must be in Arvo format
+            pcoll
+            |"read schema from arvo file" >> beam.Map(read_schema)
+            |"remove unused schema fields" >> beam.Map(clean_unused_schema_fields,self.ignore_fields)
+            |"flatten schema" >> beam.Map(flatten_schema)
+            |"convert arvo schema to BQ schema" >> beam.Map(convert_bq_schema)
+            # |"dumps to json" >> beam.Map(lambda x: json.dumps(x).encode())
+        )
+        return schema
+class read_arvo_content(beam.PTransform):
+    def __init__(self,ignore_fields):
+            self.ignore_fields =ignore_fields
+    def expand(self, pcoll):
+        def remove_elements(data, removelist):
+            def recursive_remove(data, keys):
+                if len(keys) == 1:
+                    data.pop(keys[0], None)
+                else:
+                    key = keys.pop(0)
+                    if key in data:
+                        recursive_remove(data[key], keys)
+                        if not data[key]:  # Remove the key if the sub-dictionary is empty
+                            data.pop(key)
+
+            for item in removelist:
+                keys = item.split('.')
+                recursive_remove(data, keys)
+            return data
+        def flatten_data(data):
+            def convert_data(value):
+                if isinstance(value, datetime.datetime):
+                    # return value.strftime('%Y-%m-%d %H:%M:%S.%f UTC')
+                    return value
+                elif isinstance(value,list):
+                    return str(value)
+                else: return value
+            flattened_data = {}
+            flattened_data['ingestion_meta_data_processing_timestamp'] = convert_data((datetime.datetime.now(datetime.timezone.utc))) 
+            for key, value in data.items():
+                if key == "payload":
+                    for payload_name,payload_val in value.items():
+                        value[payload_name] = convert_data(payload_val)
+                    flattened_data.update(value)
+                elif key == "source_metadata":
+                    for sub_key, sub_value in value.items():
+                        flattened_data[f"source_metadata_{sub_key}"] = convert_data(sub_value)
+                else:
+                    flattened_data[f"ingestion_meta_data_{key}"] = convert_data(value)
+            return flattened_data
+            # return flattened_data
+        # Function to calculate the hash of a record
+        def calculate_hash_payload(data):
+            # You can modify the hashing function and encoding as needed
+            record_str = str(data['payload'])  # Convert record to string if necessary
+            record_hash = hashlib.sha256(record_str.encode('utf-8')).hexdigest()
+            data['payload']['row_hash'] = record_hash
+            return data
+        
+        data = ( # data must be in Arvo format
+            pcoll
+            | beam.io.ReadAllFromAvro()
+            | "remove unrelated fields" >> beam.Map(remove_elements,self.ignore_fields)
+            | "calculate row hash on payload" >>  beam.Map(calculate_hash_payload)
+            | "flatten data" >> beam.Map(flatten_data)
+            # | beam.Map(lambda x: json.dumps(x).encode())
+        )
+        return data
+class gcs_arvo_processing(beam.PTransform):
+    def __init__(self, subscription_path,project ='pj-bu-dw-data-sbx',data_set ='lake_view_cmd'):
+        self.subscription_path=subscription_path
+        self.project=project
+        self.data_set=data_set
+    def expand(self, pcoll):
+        class reorder_data_based_on_schema(beam.DoFn):
+            def process(self, element, schema):
+                def checking_null_type (json_schema):
+                    null_type = []
+                    for field in json_schema['fields']:
+                        if (field['type'] is None):
+                            null_type.append(field['name'])
+                    # print( f"null columns: {null_type}" )
+                    if len(null_type)>0: 
+                        raise ReferenceError(f"having null in type: {null_type}")
+                    else:  
+                        return None
+                def reorder_json(data, schema):
+                    # Extract the order of fields from the schema
+                    field_order = [field['name'] for field in schema['fields']]
+                    
+                    # Reorder the data based on the field order
+                    reordered_data = {field: data[field] for field in field_order if field in data}
+                    
+                    return reordered_data
+                for sch in schema:
+                    if checking_null_type(sch) is None:
+                        yield (reorder_json(element,sch),json.dumps(sch))
+                    else:
+                        raise ReferenceError(f"having null in type")
+                # yield (element, schema)
         path =(
             pcoll|"read file path from pubsub" >> read_path(self.subscription_path)
         )
@@ -343,43 +359,171 @@ class gcs_arvo_processing(beam.PTransform):
         bq_schema = (
             path
             |"arvo schema processing" >> arvo_schema_processing(ignore_fields)
-            |beam.Map(lambda x: json.loads(x))
-            |"convert arvo schema to BQ schema" >> beam.Map(convert_bq_schema)
-            |"error checking" >> beam.Map(checking_null_type)
             )
         result = (
             data
-            | 'ApplyCrossJoinWithTwoSides' >> beam.FlatMap(
-            cross_join_with_sides,
-            rights=beam.pvalue.AsIter(bq_schema),
-            # rights2=beam.pvalue.AsIter(table_name)
+            | 'reorder data based on schema' >> beam.ParDo( reorder_data_based_on_schema(),AsIter(bq_schema))
         )
-        )
+        
         return result
 class write_to_BQ(beam.PTransform):
     def __init__(self,project ='pj-bu-dw-data-sbx',data_set ='lake_view_cmd'):
         self.project=project
         self.data_set=data_set
     def expand(self, pcoll):
-        # to_BQ= (
-        #     pcoll
-        #     | beam.Map(lambda x: "{}:{}.{}".format(self.project,self.data_set,json.loads(x[0])['source_metadata_table']))
-            
-        # )
+        
+        default_schema ={
+            "fields": [
+                {
+                "name": "ingestion_meta_data_processing_timestamp",
+                "type": "TIMESTAMP",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "ingestion_meta_data_uuid",
+                "type": "STRING",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "ingestion_meta_data_read_timestamp",
+                "type": "TIMESTAMP",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "ingestion_meta_data_source_timestamp",
+                "type": "TIMESTAMP",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "ingestion_meta_data_object",
+                "type": "STRING",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "ingestion_meta_data_read_method",
+                "type": "STRING",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "source_metadata_schema",
+                "type": "STRING",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "source_metadata_table",
+                "type": "STRING",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "source_metadata_is_deleted",
+                "type": "BOOL",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "source_metadata_change_type",
+                "type": "STRING",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "source_metadata_primary_keys",
+                "type": "STRING",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "id",
+                "type": "INTEGER",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "public_identifier",
+                "type": "STRING",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "creation_timestamp",
+                "type": "TIMESTAMP",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "last_update_timestamp",
+                "type": "TIMESTAMP",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "entity_role_public_identifier",
+                "type": "STRING",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "property_type",
+                "type": "STRING",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "property_value",
+                "type": "STRING",
+                "mode": "NULLABLE"
+                },
+                {
+                "name": "row_hash",
+                "type": "STRING",
+                "mode": "NULLABLE"
+                },
+                # {
+                # "name": "ingestion_meta_data_bq_schema",
+                # "type": "STRING",
+                # "mode": "NULLABLE"
+                # }
+            ]
+            }
+        def get_schema(element, project, data_set):
+            return (f"{project}:{data_set}.{element[0]['source_metadata_table']}",json.loads(element[1]))
+        bq_schema=AsDict(pcoll |beam.Map(get_schema,self.project,self.data_set) )
+        data =(
+            pcoll
+            | beam.Map(lambda x: x[0])
+            | "fixed windows 10sec for slowly side input" >> beam.WindowInto(FixedWindows(10))
+        )
         to_BQ =(
-            pcoll | WriteToBigQuery(
-        table=lambda x: "{}:{}.{}".format(self.project,self.data_set,json.loads(x[0])['source_metadata_table']),
-        schema = lambda x: json.loads(x[1]),
-        write_disposition='WRITE_APPEND',
-        create_disposition='CREATE_IF_NEEDED',
-        insert_retry_strategy='RETRY_ON_TRANSIENT_ERROR',
-        method= WriteToBigQuery.Method.STREAMING_INSERTS,
-        # additional_bq_parameters = {
-        #   'timePartitioning': {'type': 'DAY'},
-        #   'clustering': {'fields': ['country']}}
-        # with_auto_sharding=True,
-        # kms_key= self.Option['CREATE_DISPOSITION'],
-        # method='STREAMING_INSERTS',) 
+            data          
+            |WriteToBigQuery(
+                table=lambda x: "{}:{}.{}".format(self.project,self.data_set,x['source_metadata_table']),
+                schema= lambda schema ,bq_schema:bq_schema[schema] ,
+                schema_side_inputs = (bq_schema,),
+                write_disposition='WRITE_APPEND',
+                create_disposition='CREATE_IF_NEEDED',
+                insert_retry_strategy='RETRY_ON_TRANSIENT_ERROR',
+                # temp_file_format=bigquery_tools.FileFormat.AVRO,
+                method= WriteToBigQuery.Method.STREAMING_INSERTS,
+                additional_bq_parameters = {
+                #   'timePartitioning': {'type': 'DAY'},
+                #   'clustering': {'fields': ['country']}
+                  'schemaUpdateOptions': [
+                        'ALLOW_FIELD_ADDITION',
+                        'ALLOW_FIELD_RELAXATION',
+                    ]
+                  }
+                # with_auto_sharding=True,
+                # kms_key= self.Option['CREATE_DISPOSITION'],
+                # method='STREAMING_INSERTS',) 
+            )
+        )
+        # Chaining of operations after WriteToBigQuery(https://beam.apache.org/releases/pydoc/2.54.0/apache_beam.io.gcp.bigquery.html?highlight=writetobigquery)
+        
+        error_schema = {'fields': [
+                {'name': 'destination', 'type': 'STRING', 'mode': 'NULLABLE'},
+                {'name': 'row', 'type': 'STRING', 'mode': 'NULLABLE'},
+                {'name': 'error_message', 'type': 'STRING', 'mode': 'NULLABLE'}]}
+        _ = (to_BQ.failed_rows_with_errors
+        | 'Get Errors' >> beam.Map(lambda e: {
+                "destination": e[0],
+                "row": json.dumps(e[1]),
+                "error_message": e[2][0]['message']
+                })
+        | 'Write Errors' >> WriteToBigQuery(
+                method=WriteToBigQuery.Method.STREAMING_INSERTS,
+                table="{}:{}.error_log_table".format(self.project,self.data_set),
+                schema=error_schema,
         )
         )
         return to_BQ
