@@ -29,7 +29,7 @@ class read_path(beam.PTransform):
         def filter(element):
             return element['size'] != '0'
         def path_former(element):
-            logging.info("get: gs://"+element['bucket']+"/"+element['name'])
+            # print("get: gs://"+element['bucket']+"/"+element['name'])
             return "gs://"+element['bucket']+"/"+element['name']
         messages = (
                 pcoll 
@@ -61,7 +61,7 @@ class arvo_schema_processing(beam.PTransform):
                 # return (json.dumps(parsed, indent=4, sort_keys=True))
                 # return reader['avro.schema'].decode()
         def clean_unused_schema_fields(data, ignore_fields):
-            logging.info("schema process for table {}".format(data["name"]))
+            # print("schema process for table {}".format(data["name"]))
             def should_ignore(field, parent):
                 full_name = f"{parent}.{field}" if parent else field
                 return full_name in ignore_fields
@@ -285,7 +285,7 @@ class read_arvo_content(beam.PTransform):
                         flattened_data[f"source_metadata_{sub_key}"] = convert_data(sub_value)
                 else:
                     flattened_data[f"ingestion_meta_data_{key}"] = convert_data(value)
-            logging.info("processing data for table {}".format(flattened_data["source_metadata_table"]))
+            # print("processing data for table {}".format(flattened_data["source_metadata_table"]))
             return flattened_data
         # Function to calculate the hash of a record
         def calculate_hash_payload(data):
@@ -311,7 +311,7 @@ class gcs_arvo_processing(beam.PTransform):
     def expand(self, pcoll):
         class reorder_data_based_on_schema(beam.DoFn):
             def process(self, element, schema):
-                logging.info("reorder data table {}".format(element["source_metadata_table"]))
+                # print("reorder data table {}".format(element["source_metadata_table"]))
                 def checking_null_type (json_schema):
                     null_type = []
                     for field in json_schema['fields']:
@@ -350,7 +350,6 @@ class gcs_arvo_processing(beam.PTransform):
             )
         result = (
             data
-            | "w3" >> beam.WindowInto(FixedWindows(10))
             | 'reorder data based on schema' >> beam.ParDo( reorder_data_based_on_schema(),AsIter(bq_schema))
             
         )
@@ -362,42 +361,45 @@ class write_to_BQ(beam.PTransform):
         self.data_set=data_set
     def expand(self, pcoll):
         def get_schema(element, project, data_set):
-            logging.info("loading data to table {}:{}.{}".format(project,data_set,element[0]['source_metadata_table']))
+            print("BQ {}:{}.{}".format(project,data_set,element[0]['source_metadata_table']))
             return (f"{project}:{data_set}.{element[0]['source_metadata_table']}",json.loads(element[1]))
         bq_schema=AsDict(pcoll 
                         #  | "w4" >> beam.WindowInto(FixedWindows(10))
                          |beam.Map(get_schema,self.project,self.data_set) 
-                         | "w4" >> beam.WindowInto(FixedWindows(10))
+                         | "w3" >> beam.WindowInto(FixedWindows(10))
                          )
         data =(
             pcoll
             | beam.Map(lambda x: x[0])
-            | "w5" >> beam.WindowInto(FixedWindows(10))
+            | "w4" >> beam.WindowInto(FixedWindows(10))
         )
         to_BQ =(
             data          
-            # | "w7" >> beam.WindowInto(FixedWindows(10))
             |WriteToBigQuery(
                 table=lambda x: "{}:{}.{}".format(self.project,self.data_set,x['source_metadata_table']),
                 schema= lambda schema ,bq_schema:bq_schema[schema] ,
                 schema_side_inputs = (bq_schema,),
                 write_disposition='WRITE_APPEND',
                 create_disposition='CREATE_IF_NEEDED',
-                insert_retry_strategy='RETRY_ON_TRANSIENT_ERROR',
-                temp_file_format='AVRO',
-                method= WriteToBigQuery.Method.STREAMING_INSERTS,
-                # additional_bq_parameters = {
-                # #   'timePartitioning': {'type': 'DAY'},
-                # #   'clustering': {'fields': ['country']}
-                #   'schemaUpdateOptions': [
-                #         'ALLOW_FIELD_ADDITION',
-                #         'ALLOW_FIELD_RELAXATION',
-                #     ]
-                #   }
+                # insert_retry_strategy='RETRY_ON_TRANSIENT_ERROR',
+                # temp_file_format='AVRO',
+                # method='STREAMING_INSERTS',
+                additional_bq_parameters = {
+                #   'timePartitioning': {
+                #       'type': 'DAY',
+                #       'field': 'ingestion_meta_data_processing_timestamp'
+                #       },
+                #   'clustering': {'fields': ['country']}
+                  'schemaUpdateOptions': [
+                        'ALLOW_FIELD_ADDITION',
+                        'ALLOW_FIELD_RELAXATION',
+                    ]
+                  }
                 # with_auto_sharding=True,
-                # kms_key,,
+                # kms_key,
             )
         )
+
         # Chaining of operations after WriteToBigQuery(https://beam.apache.org/releases/pydoc/2.54.0/apache_beam.io.gcp.bigquery.html?highlight=writetobigquery)
         error_schema = {'fields': [
                 {'name': 'destination', 'type': 'STRING', 'mode': 'NULLABLE'},
