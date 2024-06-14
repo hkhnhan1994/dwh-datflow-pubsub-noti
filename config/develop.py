@@ -4,7 +4,7 @@ beam_config={
     "temp_location": "gs://test_bucket_upvn/datastream-postgres/Beam-pubsub/temp",
     "project": "pj-bu-dw-data-sbx",
     "region": "europe-west1",
-    "max_num_workers": 1,
+    "max_num_workers": 3,
     "num_workers": 1,
     "worker_region": 'europe-west1',
     "machine_type": 'n1-standard-1',
@@ -12,7 +12,7 @@ beam_config={
     "runner": "DataflowRunner", # DirectRunner DataflowRunner
     "setup_file": './setup.py',
     "save_main_session" : True,
-    "streaming":True
+    "streaming": True
 }
 
 pipeline_config ={
