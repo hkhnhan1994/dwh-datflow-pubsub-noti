@@ -384,17 +384,17 @@ class write_to_BQ(beam.PTransform):
                 # insert_retry_strategy='RETRY_ON_TRANSIENT_ERROR',
                 # temp_file_format='AVRO',
                 # method='STREAMING_INSERTS',
-                additional_bq_parameters = {
-                #   'timePartitioning': {
-                #       'type': 'DAY',
-                #       'field': 'ingestion_meta_data_processing_timestamp'
-                #       },
-                #   'clustering': {'fields': ['country']}
-                  'schemaUpdateOptions': [
-                        'ALLOW_FIELD_ADDITION',
-                        'ALLOW_FIELD_RELAXATION',
-                    ]
-                  }
+                # additional_bq_parameters = {
+                # #   'timePartitioning': {
+                # #       'type': 'DAY',
+                # #       'field': 'ingestion_meta_data_processing_timestamp'
+                # #       },
+                # #   'clustering': {'fields': ['country']}
+                #   'schemaUpdateOptions': [
+                #         'ALLOW_FIELD_ADDITION',
+                #         'ALLOW_FIELD_RELAXATION',
+                #     ]
+                #   }
                 # with_auto_sharding=True,
                 # kms_key,
             )
