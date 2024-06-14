@@ -5,9 +5,9 @@ setup(
     install_requires=[
         'PyYAML',
         # 'unicodecsv==0.14.1'
-        "apache-beam[gcp]==2.54.0",  # Must match the version in `Dockerfile``.
-        "pyfiglet",  # This is the only non-Beam dependency of this pipeline.
-        "avro",
+        # "apache-beam[gcp]==2.54.0"
+        "pyfiglet",
+        "avro==1.11.3",
 
     ],
     description='dataflow',
