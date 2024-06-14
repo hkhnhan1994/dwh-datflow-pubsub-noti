@@ -365,18 +365,18 @@ class write_to_BQ(beam.PTransform):
             logging.info("loading data to table {}:{}.{}".format(project,data_set,element[0]['source_metadata_table']))
             return (f"{project}:{data_set}.{element[0]['source_metadata_table']}",json.loads(element[1]))
         bq_schema=AsDict(pcoll 
-                         | "w4" >> beam.WindowInto(FixedWindows(10))
+                        #  | "w4" >> beam.WindowInto(FixedWindows(10))
                          |beam.Map(get_schema,self.project,self.data_set) 
-                         | "w5" >> beam.WindowInto(FixedWindows(10))
+                         | "w4" >> beam.WindowInto(FixedWindows(10))
                          )
         data =(
             pcoll
             | beam.Map(lambda x: x[0])
-            | "w6" >> beam.WindowInto(FixedWindows(10))
+            | "w5" >> beam.WindowInto(FixedWindows(10))
         )
         to_BQ =(
             data          
-            | "w7" >> beam.WindowInto(FixedWindows(10))
+            # | "w7" >> beam.WindowInto(FixedWindows(10))
             |WriteToBigQuery(
                 table=lambda x: "{}:{}.{}".format(self.project,self.data_set,x['source_metadata_table']),
                 schema= lambda schema ,bq_schema:bq_schema[schema] ,
