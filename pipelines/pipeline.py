@@ -3,7 +3,7 @@ import logging
 import apache_beam as beam
 from .datalake_transformations import  gcs_arvo_processing, write_to_BQ
 # from util.schema import read_datalake_schema, register_beam_coder
-# print = logging.info
+print = logging.info
 
 def run(beam_options):
     with beam.Pipeline(options=beam_options) as p:

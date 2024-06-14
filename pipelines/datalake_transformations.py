@@ -4,7 +4,7 @@ import json
 from avro.datafile import DataFileReader
 from avro.io import DatumReader
 import io
-from apache_beam.pvalue import AsIter, AsDict, AsSingleton
+from apache_beam.pvalue import AsIter, AsDict
 from apache_beam.io.gcp.gcsfilesystem import GCSFileSystem
 from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.io.gcp.bigquery import WriteToBigQuery
@@ -12,7 +12,7 @@ from apache_beam.transforms.window import FixedWindows
 import datetime
 import hashlib
 import logging
-print = logging.info
+# print = logging.info
 
 ignore_fields =[
     'stream_name',
@@ -29,7 +29,7 @@ class read_path(beam.PTransform):
         def filter(element):
             return element['size'] != '0'
         def path_former(element):
-            print("get: gs://"+element['bucket']+"/"+element['name'])
+            logging.info("get: gs://"+element['bucket']+"/"+element['name'])
             return "gs://"+element['bucket']+"/"+element['name']
         messages = (
                 pcoll 
@@ -54,13 +54,14 @@ class arvo_schema_processing(beam.PTransform):
                 avro_bytes = f.read()
                 f.close()    
             with io.BytesIO(avro_bytes) as avro_file:
-                reader = DataFileReader(avro_file, DatumReader()).GetMeta('avro.schema')
-                parsed = json.loads(reader)
+                reader = DataFileReader(avro_file, DatumReader()).meta
+                parsed = json.loads(reader['avro.schema'].decode())
                 avro_file.close()
-                # return (json.dumps(parsed, indent=4, sort_keys=True))
                 return parsed
+                # return (json.dumps(parsed, indent=4, sort_keys=True))
+                # return reader['avro.schema'].decode()
         def clean_unused_schema_fields(data, ignore_fields):
-            print("schema process for table {}".format(data["name"]))
+            logging.info("schema process for table {}".format(data["name"]))
             def should_ignore(field, parent):
                 full_name = f"{parent}.{field}" if parent else field
                 return full_name in ignore_fields
@@ -284,7 +285,7 @@ class read_arvo_content(beam.PTransform):
                         flattened_data[f"source_metadata_{sub_key}"] = convert_data(sub_value)
                 else:
                     flattened_data[f"ingestion_meta_data_{key}"] = convert_data(value)
-            print("processing data for table {}".format(flattened_data["source_metadata_table"]))
+            logging.info("processing data for table {}".format(flattened_data["source_metadata_table"]))
             return flattened_data
         # Function to calculate the hash of a record
         def calculate_hash_payload(data):
@@ -310,7 +311,7 @@ class gcs_arvo_processing(beam.PTransform):
     def expand(self, pcoll):
         class reorder_data_based_on_schema(beam.DoFn):
             def process(self, element, schema):
-                print("reorder data table {}".format(element["source_metadata_table"]))
+                logging.info("reorder data table {}".format(element["source_metadata_table"]))
                 def checking_null_type (json_schema):
                     null_type = []
                     for field in json_schema['fields']:
@@ -361,7 +362,7 @@ class write_to_BQ(beam.PTransform):
         self.data_set=data_set
     def expand(self, pcoll):
         def get_schema(element, project, data_set):
-            print("loading data to table {}:{}.{}".format(project,data_set,element[0]['source_metadata_table']))
+            logging.info("loading data to table {}:{}.{}".format(project,data_set,element[0]['source_metadata_table']))
             return (f"{project}:{data_set}.{element[0]['source_metadata_table']}",json.loads(element[1]))
         bq_schema=AsDict(pcoll 
                          | "w4" >> beam.WindowInto(FixedWindows(10))
