@@ -1,3 +1,8 @@
 apache-beam==2.48.0
 avro==1.11.3
-google-api-core==2.18.0
+google-api-core
+google-apitools
+google-cloud
+google-cloud-bigquery
+google-cloud-storage
+google-cloud-logging

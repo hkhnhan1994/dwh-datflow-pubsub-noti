@@ -5,7 +5,7 @@ setup(
     install_requires=[
         'PyYAML',
         # 'unicodecsv==0.14.1'
-        # "apache-beam[gcp]==2.54.0"
+        # "pip install 'apache-beam[gcp]'"
         "pyfiglet",
         "avro==1.11.3",
 
