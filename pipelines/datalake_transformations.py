@@ -4,25 +4,16 @@ import json
 from avro.datafile import DataFileReader
 from avro.io import DatumReader
 import io
-from apache_beam.pvalue import AsIter, AsDict, AsSingleton
+from apache_beam.pvalue import AsIter, AsDict
 from apache_beam.io.gcp.gcsfilesystem import GCSFileSystem
 from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.io.gcp.bigquery import WriteToBigQuery
-from apache_beam.transforms.window import FixedWindows, GlobalWindows, Sessions
+from apache_beam.transforms.window import FixedWindows
 import datetime
 import hashlib
-from apache_beam.transforms import trigger
 import logging
 # print = logging.info
 
-# ignore_fields =[
-#     'stream_name',
-#     'schema_key',
-#     'sort_keys',
-#     'source_metadata.tx_id',
-#     'source_metadata.lsn',
-# ]
-    
 class read_path_from_pubsub(beam.PTransform):
     def __init__(self, project, subscription):
         self.project=project
@@ -43,6 +34,7 @@ class read_path_from_pubsub(beam.PTransform):
                 | "to json" >> beam.Map(json.loads)
                 |"check if file arrived" >> beam.Filter(filter)
                 | beam.Map(path_former)
+                # |"windowtime pubsub" >> beam.WindowInto(FixedWindows(5))
         )
         return get_message_contains_file_url
 # as a side input
@@ -243,7 +235,8 @@ class arvo_schema_processing(beam.PTransform):
             
         schema = ( # data must be in Arvo format
             pcoll
-            |"read schema from arvo file" >> beam.Map(read_schema)           
+            |"read schema from arvo file" >> beam.Map(read_schema)  
+            # | beam.WindowInto(GlobalWindows())
             |"remove unused schema fields" >> beam.Map(clean_unused_schema_fields,self.ignore_fields)
             |"flatten schema" >> beam.Map(flatten_schema)
             |"convert arvo schema to BQ schema" >> beam.Map(convert_bq_schema)
@@ -306,90 +299,41 @@ class read_arvo_content(beam.PTransform):
         )
         return data
 class gcs_arvo_processing(beam.PTransform):
-    def __init__(self,
-                 ignore_fields, 
-                 pubsub_project,
-                 pubsub_subscription):
-        self.pubsub_subscription=pubsub_subscription
-        self.pubsub_project=pubsub_project
-        self.ignore_fields=ignore_fields
+    def __init__(self, bq_schema):
+        super().__init__()
+        self.bq_schema = bq_schema
     def expand(self, pcoll):
-        class reorder_data_based_on_schema(beam.DoFn):
-            def process(self, element, schema):
-                # print("reorder data table {}".format(element["source_metadata_table"]))
-                def checking_null_type (json_schema):
-                    null_type = []
-                    for field in json_schema['fields']:
-                        if (field['type'] is None):
-                            null_type.append(field['name'])
-                    if len(null_type)>0: 
-                        raise ReferenceError(f"having null in type: {null_type}")
-                    else:  
-                        return None
-                def reorder_json(data, schema):
-                    # Extract the order of fields from the schema
-                    field_order = [field['name'] for field in schema['fields']]
-                    
-                    # Reorder the data based on the field order
-                    reordered_data = {field: data[field] for field in field_order if field in data}
-                    
-                    return reordered_data
-                # for sch in schema:
-                if checking_null_type(schema[-1]) is None:
-                    yield (reorder_json(element,schema[-1]),json.dumps(schema[-1]))
-                else:
-                    raise ReferenceError(f"having null in type")
-        path =(
-            pcoll|"read file path from pubsub" >> read_path_from_pubsub(project=self.pubsub_project,subscription=self.pubsub_subscription)
+        def reorder_data_based_on_schema(element, schema):
+            for sch in schema:
+                field_order = [field['name'] for field in sch['fields']]
+                # Reorder the data based on the field order
+                reordered_data = {field: element[field] for field in field_order if field in element}
+                yield reordered_data
+        return (
+            pcoll
+            |'reorder data based on schema' >> beam.FlatMap( reorder_data_based_on_schema, schema= AsIter(self.bq_schema))
         )
-        data = (path
-                | "w1" >> beam.WindowInto(FixedWindows(5),
-              accumulation_mode=trigger.AccumulationMode.DISCARDING)
-                |"arvo data processing" >> read_arvo_content(self.ignore_fields)
-                
-                )
-         # get schema
-        bq_schema = (
-            path
-            | "w2" >> beam.WindowInto(FixedWindows(5),trigger=trigger.AfterWatermark(early=trigger.AfterCount(1)),
-              accumulation_mode=trigger.AccumulationMode.DISCARDING)
-            |"arvo schema processing" >> arvo_schema_processing(self.ignore_fields)
-            
-            )
-        result = (
-            data
-            | 'reorder data based on schema' >> beam.ParDo( reorder_data_based_on_schema(),AsIter(bq_schema))
-        )
-        
-        return result
 class write_to_BQ(beam.PTransform):
-    def __init__(self,project ='pj-bu-dw-data-sbx',data_set ='lake_view_cmd'):
+    def __init__(self,project ,data_set, bq_schema):
+        super().__init__()
         self.project=project
         self.data_set=data_set
+        self.bq_schema = bq_schema
     def expand(self, pcoll):
-        def get_schema(element):
-            schema = json.loads(element[1])
-            data = element[0]
-            # print("{}:{}.{}".format(self.project,self.data_set,data['source_metadata_table'])) 
-            return ("{}:{}.{}".format(self.project,self.data_set,data['source_metadata_table']), {"fields":schema["fields"]})
-        bq_schema=AsDict(pcoll
-                         | "w3" >> beam.WindowInto(FixedWindows(5),trigger=trigger.AfterWatermark(early=trigger.AfterCount(1)),
-              accumulation_mode=trigger.AccumulationMode.DISCARDING)
-                         |"get schema" >> beam.Map(get_schema) 
-                         )
-        data =(
-            pcoll
-            | "w4" >> beam.WindowInto(FixedWindows(5),
-              accumulation_mode=trigger.AccumulationMode.DISCARDING)
-            |"get data" >> beam.Map(lambda x: x[0])
-            
-        )
+        def extract_schema(schema):
+            print("{}:{}.{}".format(self.project,self.data_set,schema['name']))
+            return ("{}:{}.{}".format(self.project,self.data_set,schema['name']), {"fields":schema["fields"]})
+        bq_schema = ( # sideinput
+                self.bq_schema 
+                |"get schema" >> beam.Map(extract_schema)
+                | "w3" >> beam.WindowInto(FixedWindows(5))
+                ) 
         to_BQ =(
-            data          
+            pcoll
             |WriteToBigQuery(
-                table=lambda x: "{}:{}.{}".format(self.project,self.data_set,x['source_metadata_table']),
-                schema= lambda schema ,bq_schema:bq_schema[schema] ,
-                schema_side_inputs = (bq_schema,),
+                table=lambda x: "{}:{}.{}".format(self.project,self.data_set,x['ingestion_meta_data_object']),
+                schema= lambda table ,bq_schema:bq_schema[table],
+                schema_side_inputs = (AsDict(bq_schema),),
                 write_disposition='WRITE_APPEND',
                 create_disposition='CREATE_IF_NEEDED',
                 # insert_retry_strategy='RETRY_NEVER',
@@ -399,22 +343,7 @@ class write_to_BQ(beam.PTransform):
                 # kms_key,
             )
         )
-        # def chain_after(result):
-        #     # Works for STREAMING_INSERTS, where we return the rows BigQuery rejected
-        #     try:
-        #         return list(x for x in result)
-        #     except: return list("none",)
-        # _ =(chain_after(to_BQ)|
-        #     beam.Map(print))
-        # # Chaining of operations after WriteToBigQuery(https://beam.apache.org/releases/pydoc/2.54.0/apache_beam.io.gcp.bigquery.html?highlight=writetobigquery)
         
-        # def chain_after(result):
-        #     # Works for STREAMING_INSERTS, where we return the rows BigQuery rejected
-        #     return result.failed_rows
-        
-        
-        # _ = (chain_after(to_BQ)
-        #    |'Get Errors' >>beam.Map(print))
         error_schema = {'fields': [
                 {'name': 'destination', 'type': 'STRING', 'mode': 'NULLABLE'},
                 {'name': 'row', 'type': 'STRING', 'mode': 'NULLABLE'},

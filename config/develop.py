@@ -16,7 +16,7 @@ beam_config={
 }
 pubsub_config={
     "project": "pj-bu-dw-data-sbx",
-    "subscription": "test_sub"
+    "subscription": "test_sub" # test1mess test_sub
 }
 cdc_ignore_fields = [
     'stream_name',
@@ -31,14 +31,4 @@ bigquery_datalake ={
     "region": "europe-west1",
     "data_set": "lake_view_cmd",
 }
-pipeline_config ={
-    "CMD":{
-        "datalake":{
-            "WHITELISTED_TABLES":[
-                'cdc_metadata', # for cdc datastream metadata
-                'source_metadata',# for cdc datastream metadata
-                'dwh_entity_role_properties',
-                ],
-        }
-    },
-}
+
