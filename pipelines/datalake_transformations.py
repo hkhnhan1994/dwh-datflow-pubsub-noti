@@ -4,11 +4,13 @@ import json
 from avro.datafile import DataFileReader
 from avro.io import DatumReader
 import io
-from apache_beam.pvalue import AsIter, AsDict
+from apache_beam.pvalue import AsIter, AsDict, AsSingleton
 from apache_beam.io.gcp.gcsfilesystem import GCSFileSystem
 from apache_beam.options.pipeline_options import PipelineOptions
-from apache_beam.io.gcp.bigquery import WriteToBigQuery
+from apache_beam.io.gcp.bigquery import WriteToBigQuery, ReadFromBigQuery
 from apache_beam.transforms.window import FixedWindows
+
+from google.cloud import bigquery
 import datetime
 import hashlib
 import logging
@@ -38,7 +40,7 @@ class read_path_from_pubsub(beam.PTransform):
         )
         return get_message_contains_file_url
 # as a side input
-class arvo_schema_processing(beam.PTransform):
+class arvo_schema_to_BQ_schema(beam.PTransform):
     def __init__(self,ignore_fields):
             self.fs = GCSFileSystem(PipelineOptions())
             self.ignore_fields =ignore_fields
@@ -298,21 +300,80 @@ class read_arvo_content(beam.PTransform):
             # | beam.Map(lambda x: json.dumps(x).encode())
         )
         return data
-class gcs_arvo_processing(beam.PTransform):
+class mapping_data_to_schema(beam.PTransform):
     def __init__(self, bq_schema):
         super().__init__()
         self.bq_schema = bq_schema
     def expand(self, pcoll):
-        def reorder_data_based_on_schema(element, schema):
+        def reorder_and_fill_null_data_based_on_schema(element, schema):
             for sch in schema:
-                field_order = [field['name'] for field in sch['fields']]
-                # Reorder the data based on the field order
-                reordered_data = {field: element[field] for field in field_order if field in element}
+                reordered_data = {}
+                for field in sch[1]['fields']:
+                    field_name = field['name']
+                    if field_name in element:
+                        reordered_data[field_name] = element[field_name]
+                    else:
+                        reordered_data[field_name] = None
                 yield reordered_data
+        
         return (
             pcoll
-            |'reorder data based on schema' >> beam.FlatMap( reorder_data_based_on_schema, schema= AsIter(self.bq_schema))
+            |'reorder data based on schema' >> beam.FlatMap(reorder_and_fill_null_data_based_on_schema, schema= AsIter(self.bq_schema))
+            
         )
+class schema_changes(beam.PTransform):
+    def __init__(self,project ,data_set, bq_schema):
+        super().__init__()
+        self.project=project
+        self.data_set=data_set
+        self.bq_schema = bq_schema
+    def expand(self, pcoll):
+        def merge_schema(arvo_schema,bq_schema):
+            curent_fields = {field['name'] for field in arvo_schema.get('fields')}
+            for bq in bq_schema:
+                # print("{} : {}".format(arvo_schema['name'],bq.keys()))
+                if bq.get(arvo_schema['name']):
+                    existing_fields = {field['name'] for field in bq.get(arvo_schema['name']).get('fields')}
+                    union_set = curent_fields.union(existing_fields)
+                    # print(union_set)
+                    for field in arvo_schema['fields']:
+                        if field['name'] not in union_set:
+                            arvo_schema["fields"].append(field)
+                return arvo_schema
+        
+        def map_schema_to_table_name(schema):
+            # print("{}:{}.{}".format(self.project,self.data_set,schema['name']))
+            return ("{}:{}.{}".format(self.project,self.data_set,schema['name']), {"fields":schema["fields"]})
+
+        return (
+            pcoll
+            |beam.Map(merge_schema, bq_schema = AsIter(self.bq_schema))
+            |beam.Map(map_schema_to_table_name)
+        )
+class read_schema_from_BQ(beam.PTransform):
+    def __init__(self,project ,data_set):
+        super().__init__()
+        self.project=project
+        self.data_set=data_set
+    def expand(self, pcoll):
+        def read_bq(arvo_schema):
+            try:
+                    # print("read bq table: {}".format(arvo_schema['name']))
+                    client = bigquery.Client()
+                    dataset_ref = client.dataset(dataset_id=self.data_set, project=self.project)
+                    table_ref = dataset_ref.table(arvo_schema['name'])
+                    table = client.get_table(table_ref)
+                    f = io.StringIO("")
+                    client.schema_to_json(table.schema, f)
+                    bq_table = json.loads(f.getvalue())
+                    return {"{}:{}.{}".format(self.project,self.data_set,arvo_schema['name']):bq_table}
+            except:
+                print("table {} not found".format(arvo_schema['name']))
+                return {arvo_schema['name']:[]}
+        return(
+            pcoll| beam.Map(read_bq)
+        )
+        
 class write_to_BQ(beam.PTransform):
     def __init__(self,project ,data_set, bq_schema):
         super().__init__()
@@ -320,20 +381,13 @@ class write_to_BQ(beam.PTransform):
         self.data_set=data_set
         self.bq_schema = bq_schema
     def expand(self, pcoll):
-        def extract_schema(schema):
-            print("{}:{}.{}".format(self.project,self.data_set,schema['name']))
-            return ("{}:{}.{}".format(self.project,self.data_set,schema['name']), {"fields":schema["fields"]})
-        bq_schema = ( # sideinput
-                self.bq_schema 
-                |"get schema" >> beam.Map(extract_schema)
-                | "w3" >> beam.WindowInto(FixedWindows(5))
-                ) 
+        
         to_BQ =(
             pcoll
             |WriteToBigQuery(
                 table=lambda x: "{}:{}.{}".format(self.project,self.data_set,x['ingestion_meta_data_object']),
                 schema= lambda table ,bq_schema:bq_schema[table],
-                schema_side_inputs = (AsDict(bq_schema),),
+                schema_side_inputs = (AsDict(self.bq_schema),),
                 write_disposition='WRITE_APPEND',
                 create_disposition='CREATE_IF_NEEDED',
                 # insert_retry_strategy='RETRY_NEVER',
