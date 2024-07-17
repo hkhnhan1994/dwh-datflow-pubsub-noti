@@ -8,7 +8,6 @@ arvo.egg-info/top_level.txt
 config/__init__.py
 config/develop.py
 pipelines/__init__.py
-pipelines/arvo_to_bq_schema_converter.py
 pipelines/datalake_transformations.py
 pipelines/pipeline.py
 util/__init__.py

@@ -17,12 +17,16 @@ import logging
 # print = logging.info
 
 class read_path_from_pubsub(beam.PTransform):
-    def __init__(self, project, subscription):
+    def __init__(self, project, subscription, file_format = ['avro']):
         self.project=project
         self.subscription =subscription
+        self.file_format = file_format
     def expand(self, pcoll):
-        def filter(element):
-            return element['size'] != '0'
+        def filter(element, file_format):
+            check_format = element['name'].split('/')[-1]
+            for f in file_format:
+                if check_format.endswith(f):
+                    return element
         def path_former(element):
             # print("get: gs://"+element['bucket']+"/"+element['name'])
             return "gs://"+element['bucket']+"/"+element['name']
@@ -34,7 +38,7 @@ class read_path_from_pubsub(beam.PTransform):
         get_message_contains_file_url =(
              messages
                 | "to json" >> beam.Map(json.loads)
-                |"check if file arrived" >> beam.Filter(filter)
+                |"check if file arrived" >> beam.Filter(filter, self.file_format)
                 | beam.Map(path_former)
                 # |"windowtime pubsub" >> beam.WindowInto(FixedWindows(5))
         )
@@ -93,6 +97,7 @@ class arvo_schema_to_BQ_schema(beam.PTransform):
                     prefixed_name = f"ingestion_meta_data_{field_name}"
                     field["name"] = prefixed_name
                     new_fields.append(field)
+            new_fields.append({"name": "ingestion_meta_data_gcs_path", "type": ["null", {"type": "string"}]})
             new_fields.append({"name": "row_hash", "type": ["null", {"type": "string"}]})
             data["fields"] = new_fields
             return data
@@ -234,7 +239,8 @@ class arvo_schema_to_BQ_schema(beam.PTransform):
                 }
             data["fields"] = list(map(lambda f: _convert_field(f), data["fields"]))
             return data
-            
+        def key_value_mapping(data):
+            return (data['name'], data['fields'])
         schema = ( # data must be in Arvo format
             pcoll
             |"read schema from arvo file" >> beam.Map(read_schema)  
@@ -242,6 +248,7 @@ class arvo_schema_to_BQ_schema(beam.PTransform):
             |"remove unused schema fields" >> beam.Map(clean_unused_schema_fields,self.ignore_fields)
             |"flatten schema" >> beam.Map(flatten_schema)
             |"convert arvo schema to BQ schema" >> beam.Map(convert_bq_schema)
+            | "(table name, data) mapping" >> beam.Map(key_value_mapping)
         )
         return schema
 class read_arvo_content(beam.PTransform):
@@ -284,6 +291,9 @@ class read_arvo_content(beam.PTransform):
                     flattened_data[f"ingestion_meta_data_{key}"] = convert_data(value)
             # print("processing data for table {}".format(flattened_data["source_metadata_table"]))
             return flattened_data
+        def merge_with_gcs_link_path(data):
+            data[1]['gcs_path'] = data[0]
+            return data[1]
         # Function to calculate the hash of a record
         def calculate_hash_payload(data):
             # You can modify the hashing function and encoding as needed
@@ -291,64 +301,60 @@ class read_arvo_content(beam.PTransform):
             record_hash = hashlib.sha256(record_str.encode('utf-8')).hexdigest()
             data['payload']['row_hash'] = record_hash
             return data
+        def mapping_table_name(data):
+            return (data['ingestion_meta_data_object'],data)
+
         data = ( # data must be in Arvo format
             pcoll
-            | beam.io.ReadAllFromAvro()
+            | beam.io.ReadAllFromAvro(with_filename =True)
+            | "add gsc path into meta data" >> beam.Map(merge_with_gcs_link_path)
             | "remove unrelated fields" >> beam.Map(remove_elements,self.ignore_fields)
             | "calculate row hash on payload" >>  beam.Map(calculate_hash_payload)
             | "flatten data" >> beam.Map(flatten_data)
-            # | beam.Map(lambda x: json.dumps(x).encode())
+            | "mapping table name to data" >> beam.Map(mapping_table_name)
+            
         )
         return data
 class mapping_data_to_schema(beam.PTransform):
-    def __init__(self, bq_schema):
-        super().__init__()
-        self.bq_schema = bq_schema
     def expand(self, pcoll):
-        def reorder_and_fill_null_data_based_on_schema(element, schema):
-            for sch in schema:
+        def reorder_and_fill_null_data_based_on_schema(data):
+            schema= data[1]['bq_schema'][0]
+            list_of_data= []
+            for dt in data[1]['data']:
                 reordered_data = {}
-                for field in sch[1]['fields']:
+                for field in schema['fields']:
                     field_name = field['name']
-                    if field_name in element:
-                        reordered_data[field_name] = element[field_name]
+                    if field_name in dt:
+                        reordered_data[field_name] = dt[field_name]
                     else:
                         reordered_data[field_name] = None
-                yield reordered_data
-        
+                list_of_data.append(reordered_data)
+            data[1]['data'] = list_of_data
+            return (data)
         return (
             pcoll
-            |'reorder data based on schema' >> beam.FlatMap(reorder_and_fill_null_data_based_on_schema, schema= AsIter(self.bq_schema))
-            
+            |'reorder data based on schema' >> beam.Map(reorder_and_fill_null_data_based_on_schema)
         )
 class schema_changes(beam.PTransform):
-    def __init__(self,project ,data_set, bq_schema):
-        super().__init__()
-        self.project=project
-        self.data_set=data_set
-        self.bq_schema = bq_schema
     def expand(self, pcoll):
-        def merge_schema(arvo_schema,bq_schema):
-            curent_fields = {field['name'] for field in arvo_schema.get('fields')}
-            for bq in bq_schema:
-                # print("{} : {}".format(arvo_schema['name'],bq.keys()))
-                if bq.get(arvo_schema['name']):
-                    existing_fields = {field['name'] for field in bq.get(arvo_schema['name']).get('fields')}
-                    union_set = curent_fields.union(existing_fields)
-                    # print(union_set)
-                    for field in arvo_schema['fields']:
-                        if field['name'] not in union_set:
-                            arvo_schema["fields"].append(field)
-                return arvo_schema
-        
-        def map_schema_to_table_name(schema):
-            # print("{}:{}.{}".format(self.project,self.data_set,schema['name']))
-            return ("{}:{}.{}".format(self.project,self.data_set,schema['name']), {"fields":schema["fields"]})
-
+        def merge_schema(merge_schema):
+            current_schema = merge_schema[1]['current_schema'][-1]
+            current_schema_fields = {field['name'] for field in current_schema}
+            # exists_schema = merge_schema[1]['exists_schema']
+            exists_schema_fields= {field['name'] for field in merge_schema[1]['exists_schema'][-1]}
+            # union_set = current_schema.union(exists_schema)
+            # return (merge_schema[0],union_set)
+            # print("{} : {}".format(arvo_schema['name'],bq.keys()))
+            union_set = current_schema_fields.union(exists_schema_fields)
+                # print(union_set)
+            for field in current_schema:
+                if field['name'] not in union_set:
+                    current_schema.append(field)
+            return (merge_schema[0],{'fields':current_schema})
         return (
             pcoll
-            |beam.Map(merge_schema, bq_schema = AsIter(self.bq_schema))
-            |beam.Map(map_schema_to_table_name)
+            |beam.Map(merge_schema)
+            # |beam.Map(map_schema_to_table_name)
         )
 class read_schema_from_BQ(beam.PTransform):
     def __init__(self,project ,data_set):
@@ -358,55 +364,76 @@ class read_schema_from_BQ(beam.PTransform):
     def expand(self, pcoll):
         def read_bq(arvo_schema):
             try:
+
                     # print("read bq table: {}".format(arvo_schema['name']))
                     client = bigquery.Client()
                     dataset_ref = client.dataset(dataset_id=self.data_set, project=self.project)
-                    table_ref = dataset_ref.table(arvo_schema['name'])
+                    table_ref = dataset_ref.table(arvo_schema[0])
                     table = client.get_table(table_ref)
                     f = io.StringIO("")
                     client.schema_to_json(table.schema, f)
                     bq_table = json.loads(f.getvalue())
-                    return {"{}:{}.{}".format(self.project,self.data_set,arvo_schema['name']):bq_table}
+                    # print(arvo_schema[0],bq_table)
+                    # return {"{}:{}.{}".format(self.project,self.data_set,arvo_schema['name']):bq_table}
+                    return (arvo_schema[0],bq_table)
             except:
-                print("table {} not found".format(arvo_schema['name']))
-                return {arvo_schema['name']:[]}
+                print("table {} not found".format(arvo_schema[0]))
+                return (arvo_schema[0],[])
         return(
             pcoll| beam.Map(read_bq)
         )
         
 class write_to_BQ(beam.PTransform):
-    def __init__(self,project ,data_set, bq_schema):
+    def __init__(self,project ,data_set):
         super().__init__()
         self.project=project
         self.data_set=data_set
-        self.bq_schema = bq_schema
     def expand(self, pcoll):
-        
-        to_BQ =(
-            pcoll
+        def get_data(data):
+            for dt in data[1]['data']:
+                yield dt
+        def map_schema_to_table_name(data):
+            # return ("{}:{}.{}".format(self.project,self.data_set,data[0]), data[1]['bq_schema'][0])
+            return ("{}:{}.{}".format(self.project,self.data_set,data[0]), data[1]['bq_schema'][0])
+        # def get_table_name(data):
+        #     return (data[0],"{}:{}.{}".format(self.project,self.data_set,data[0]))
+        data = (pcoll
+                |beam.FlatMap(get_data)
+                |"w1" >> beam.WindowInto(FixedWindows(5))
+                # |beam.Map(print)
+                
+                )
+        schema =(pcoll
+                 |beam.Map(map_schema_to_table_name)
+                 |"w2" >> beam.WindowInto(FixedWindows(5))
+                 )
+        to_BQ =( 
+            data
             |WriteToBigQuery(
                 table=lambda x: "{}:{}.{}".format(self.project,self.data_set,x['ingestion_meta_data_object']),
                 schema= lambda table ,bq_schema:bq_schema[table],
-                schema_side_inputs = (AsDict(self.bq_schema),),
+                schema_side_inputs = (AsDict(schema),),
                 write_disposition='WRITE_APPEND',
                 create_disposition='CREATE_IF_NEEDED',
-                # insert_retry_strategy='RETRY_NEVER',
+                insert_retry_strategy='RETRY_NEVER',
                 temp_file_format='AVRO',
                 method='STREAMING_INSERTS',
                 # with_auto_sharding=True,
                 # kms_key,
             )
         )
-        
         error_schema = {'fields': [
                 {'name': 'destination', 'type': 'STRING', 'mode': 'NULLABLE'},
                 {'name': 'row', 'type': 'STRING', 'mode': 'NULLABLE'},
-                {'name': 'error_message', 'type': 'STRING', 'mode': 'NULLABLE'}]}
+                {'name': 'error_message', 'type': 'STRING', 'mode': 'NULLABLE'},
+                {'name': 'timestamp', 'type': 'TIMESTAMP', 'mode': 'NULLABLE'}
+                ]}
         _ = (to_BQ.failed_rows_with_errors
         | 'Get Errors' >> beam.Map(lambda e: {
                 "destination": e[0],
-                "row": json.dumps(e[1]),
-                "error_message": e[2][0]['message']
+                "row": json.dumps(e[1],indent=4,default=str),
+                "error_message": e[2][0]['message'],
+                "timestamp":(datetime.datetime.now(datetime.timezone.utc))
                 })
         | 'Write Errors' >> WriteToBigQuery(
                 method=WriteToBigQuery.Method.STREAMING_INSERTS,
