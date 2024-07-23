@@ -1,0 +1,11 @@
+from google.cloud import bigquery
+schema =[{'name': 'ingestion_meta_data_processing_timestamp', 'type': 'TIMESTAMP', 'mode': 'NULLABLE'}, {'name': 'ingestion_meta_data_uuid', 'type': 'STRING', 'mode': 'NULLABLE'}, {'name': 'ingestion_meta_data_read_timestamp', 'type': 'TIMESTAMP', 'mode': 'NULLABLE'}, {'name': 'ingestion_meta_data_source_timestamp', 'type': 'TIMESTAMP', 'mode': 'NULLABLE'}, {'name': 'ingestion_meta_data_object', 'type': 'STRING', 'mode': 'NULLABLE'}, {'name': 'ingestion_meta_data_read_method', 'type': 'STRING', 'mode': 'NULLABLE'}, {'name': 'source_metadata_schema', 'type': 'STRING', 'mode': 'NULLABLE'}, {'name': 'source_metadata_table', 'type': 'STRING', 'mode': 'NULLABLE'}, {'name': 'source_metadata_is_deleted', 'type': 'BOOLEAN', 'mode': 'NULLABLE'}, {'name': 'source_metadata_change_type', 'type': 'STRING', 'mode': 'NULLABLE'}, {'name': 'source_metadata_primary_keys', 'type': 'STRING', 'mode': 'NULLABLE'}, {'name': 'id', 'type': 'INTEGER', 'mode': 'NULLABLE'}, {'name': 'public_identifier', 'type': 'STRING', 'mode': 'NULLABLE'}, {'name': 'creation_timestamp', 'type': 'TIMESTAMP', 'mode': 'NULLABLE'}, {'name': 'last_update_timestamp', 'type': 'TIMESTAMP', 'mode': 'NULLABLE'}, {'name': 'entity_role_public_identifier', 'type': 'STRING', 'mode': 'NULLABLE'}, {'name': 'property_type', 'type': 'STRING', 'mode': 'NULLABLE'}, {'name': 'property_value', 'type': 'STRING', 'mode': 'NULLABLE'}, {'name': 'ingestion_meta_data_gcs_path', 'type': 'STRING', 'mode': 'NULLABLE'}, {'name': 'row_hash', 'type': 'STRING', 'mode': 'NULLABLE'}]
+def _parse_schema_field(field):
+        return bigquery.SchemaField(
+            name = field['name'],
+            field_type = field['type'],
+            mode = field['mode'] if 'mode' in field else 'NULLABLE',       
+            fields = [_parse_schema_field(x) for x in field['fields']] if 'fields' in field else None
+            description= field['description'] if 'description' in field else None,
+            )
+bq_schema = [_parse_schema_field(f) for f in schema]
