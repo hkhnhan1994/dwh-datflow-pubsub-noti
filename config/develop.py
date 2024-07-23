@@ -29,6 +29,6 @@ cdc_ignore_fields = [
 bigquery_datalake ={
     "project": "pj-bu-dw-data-sbx",
     "region": "europe-west1",
-    "data_set": "lake_view_cmd",
+    "dataset": "lake_view_cmd",
 }
 
