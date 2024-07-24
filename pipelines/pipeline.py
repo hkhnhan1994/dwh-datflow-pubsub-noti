@@ -1,11 +1,12 @@
 
 import logging
 import apache_beam as beam
-from .datalake_transformations import  enrich_data, write_to_BQ, read_path_from_pubsub, arvo_schema, read_arvo_content, merge_schema, read_bq_schema, create_table
+from .transformations import  write_to_BQ, read_path_from_pubsub, arvo_schema, read_arvo_content
+from .functions import  merge_schema, read_bq_schema, create_table, enrich_data
 from config.develop import cdc_ignore_fields, pubsub_config, bigquery_datalake
 from apache_beam.transforms.window import FixedWindows
 
-# print = logging.info
+print = logging.info
 
 def run(beam_options):
     with beam.Pipeline(options=beam_options) as p:

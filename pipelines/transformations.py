@@ -9,55 +9,15 @@ from apache_beam.io.gcp.gcsfilesystem import GCSFileSystem
 from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.io.gcp.bigquery import WriteToBigQuery
 from apache_beam.transforms.window import FixedWindows
-from apache_beam.io.gcp.bigquery_tools import  get_bq_tableschema, BigQueryWrapper
-from google.cloud import bigquery
+# from apache_beam.io.gcp.bigquery_tools import  get_bq_tableschema, BigQueryWrapper
+# from google.cloud import bigquery
+from .functions import write_dead_letter
 import datetime
 import hashlib
 import logging
-# print = logging.info
-class merge_schema(beam.DoFn):
-    def process(self, merge_schema):
-        # Convert lists to dictionaries with "name" as the key
-        _cur_schema = merge_schema[1]['bq_schema']
-        _ex_schema = merge_schema[1]['avro_schema']
-        dict_cur_schema = {item['name']: item for item in _cur_schema}
-        dict_ex_schema = {item['name']: item for item in _ex_schema}
-        # Merge dictionaries
-        merged_dic_schema = {**dict_cur_schema, **dict_ex_schema}
-        # Convert merged dictionary back to a list
-        merged_schema = list(merged_dic_schema.values())
-        # Identify items in _ex_schema that are not in _cur_schema   
-        diff_list = [item for item in _ex_schema if item['name'] not in dict_cur_schema]
-        # Identify items in _cur_schema that are not in _ex_schema   
-        diff_list_but_no_update_schema = [item for item in _ex_schema if item['name'] not in dict_cur_schema]
-        if bool(diff_list):
-            print(f'found different between current schema and exists schema:{diff_list}')
-        if bool(diff_list_but_no_update_schema):
-            print(f'found different between current schema and exists schema but no update:{diff_list_but_no_update_schema}')
-        is_new_table =False if len(_cur_schema) >0 else True
-        yield (merge_schema[0],{'schema':merged_schema, 'is_schema_changes':bool(diff_list),'is_new_table':is_new_table })       
-class read_bq_schema(beam.DoFn):
-    
-    def __init__(self,project ,dataset):
-        self.project=project
-        self.dataset=dataset
-        # self.client
-    def setup(self):
-        self.client = bigquery.Client()
-    def process(self,schema):
-        try:
-            dataset_ref = self.client.dataset(dataset_id=self.dataset, project=self.project)
-            table_ref = dataset_ref.table(schema[0])
-            table = self.client.get_table(table_ref)
-            f = io.StringIO("")
-            self.client.schema_to_json(table.schema, f)
-            bq_table = json.loads(f.getvalue())
-            yield (schema[0],{"bq_schema":bq_table, "avro_schema":schema[1]})
-        except:
-            print("not found table {}".format(schema[0]))
-            yield (schema[0],{"bq_schema":[], "avro_schema":schema[1]})
+print = logging.info
 class read_path_from_pubsub(beam.PTransform):
-    def __init__(self, project, subscription, file_format = ['avro']):
+    def __init__(self, project: str, subscription: list, file_format = ['avro']):
         self.project=project
         self.subscription =subscription
         self.file_format = file_format
@@ -70,20 +30,17 @@ class read_path_from_pubsub(beam.PTransform):
         def path_former(element):
             # print("get: gs://"+element['bucket']+"/"+element['name'])
             return "gs://"+element['bucket']+"/"+element['name']
-        messages = (
-                pcoll 
-                | "read gcs noti" >> beam.io.ReadFromPubSub(subscription="projects/{}/subscriptions/{}".format(self.project,self.subscription)).with_output_types(bytes) 
-        )
-        # checking if pub/sub message contained any files
+        
+        subs = [beam.io.PubSubSourceDescriptor("projects/{}/subscriptions/{}".format(self.project,sub)) for sub in self.subscription]
         get_message_contains_file_url =(
-             messages
+                pcoll
+                | "read gcs noti" >> beam.io.MultipleReadFromPubSub(subs).with_output_types(bytes) 
                 | "to json" >> beam.Map(json.loads)
                 |"check if file arrived" >> beam.Filter(filter, self.file_format)
                 | beam.Map(path_former)
                 # |"windowtime pubsub" >> beam.WindowInto(FixedWindows(5))
         )
         return get_message_contains_file_url
-# as a side input
 class arvo_schema(beam.PTransform):
     def __init__(self,ignore_fields):
             self.fs = GCSFileSystem(PipelineOptions())
@@ -355,64 +312,6 @@ class read_arvo_content(beam.PTransform):
             
         )
         return data
-class enrich_data(beam.DoFn):
-    def process(self, data):
-        schema= data[1]['bq_schema'][0]
-        list_of_data= []
-        for dt in data[1]['data']:
-            reordered_data = {}
-            for field in schema:
-                field_name = field['name']
-                if field_name in dt:
-                    reordered_data[field_name] = dt[field_name]
-                else:
-                    reordered_data[field_name] = None
-            list_of_data.append(reordered_data)
-        data[1]['data'] = list_of_data
-        data[1]['bq_schema'] = schema
-        # data[1]['bq_schema'][0] = data[1]['bq_schema']['schema']
-        yield (data[0],data[1])
-class create_table(beam.DoFn):
-    def __init__(self,project,dataset):
-        self.project=project
-        self.dataset=dataset
-    def setup(self):
-        self.bq_table = BigQueryWrapper()
-    def _parse_schema_field(self,field):
-        return bigquery.SchemaField(
-            name = field['name'],
-            field_type = field['type'],
-            mode = field['mode'] if 'mode' in field else 'NULLABLE',       
-            fields = [self._parse_schema_field(x) for x in field['fields']] if 'fields' in field else '',
-            description= field['description'] if 'description' in field else '',
-            )
-    def process(self,data):
-        if data[1]['is_new_table']: 
-            # if new table detected
-            schema = get_bq_tableschema({'fields':data[1]['schema']})
-            self.bq_table.get_or_create_table(
-                project_id = self.project,
-                dataset_id = self.dataset,
-                table_id = data[0],
-                schema = schema,
-                create_disposition= 'CREATE_IF_NEEDED',
-                write_disposition= 'WRITE_EMPTY'
-            )
-            print(f'new table {data[0]} has been created')
-        else:
-            if data[1]['is_schema_changes']: 
-                # if schema changes detected
-                # print('schema changes detected')
-                schema = [self._parse_schema_field(f) for f in data[1]['schema']]
-                # schema = get_bq_tableschema({'fields':data[1]['schema']})
-                table = self.bq_table.gcp_bq_client.get_table(
-                    f'{ self.project}.{self.dataset}.{data[0]}'
-                )
-                table.schema = schema
-                self.bq_table.gcp_bq_client.update_table(table, ['schema'])
-
-                print('schema changes updated')
-        yield (data[0], data[1]['schema'])
 class write_to_BQ(beam.PTransform):
     def __init__(self,project ,dataset):
         super().__init__()

@@ -10,6 +10,7 @@ config/develop.py
 pipelines/__init__.py
 pipelines/datalake_transformations.py
 pipelines/pipeline.py
+test/test_avro.py
 util/__init__.py
 util/file.py
 util/notification.py
