@@ -12,7 +12,7 @@ from apache_beam.transforms.window import FixedWindows
 from apache_beam.pvalue import TaggedOutput
 # from apache_beam.io.gcp.bigquery_tools import  get_bq_tableschema, BigQueryWrapper
 # from google.cloud import bigquery
-from .functions import write_dead_letter
+from .functions import dead_letter_message
 import datetime
 import hashlib
 import logging
@@ -42,7 +42,7 @@ class read_path_from_pubsub(beam.PTransform):
                 # |"windowtime pubsub" >> beam.WindowInto(FixedWindows(5))
         )
         return get_message_contains_file_url
-class arvo_schema(beam.PTransform):
+class avro_schema(beam.PTransform):
     def __init__(self,ignore_fields):
             self.ignore_fields =ignore_fields
     def expand(self, pcoll):
@@ -50,64 +50,27 @@ class arvo_schema(beam.PTransform):
             def setup(self):
                 self.fs = GCSFileSystem(PipelineOptions())
             def process(self, element):
-                with self.fs.open(path=str(element)) as f:
-                    avro_bytes = f.read()
-                    f.close()    
-                with io.BytesIO(avro_bytes) as avro_file:
-                    reader = DataFileReader(avro_file, DatumReader()).meta
-                    parsed = json.loads(reader['avro.schema'].decode())
-                    avro_file.close()
-                    yield parsed
-        class clean_unused_schema_fields(beam.DoFn):
+                try:
+                    with self.fs.open(path=str(element)) as f:
+                        avro_bytes = f.read()
+                        f.close()    
+                    with io.BytesIO(avro_bytes) as avro_file:
+                        reader = DataFileReader(avro_file, DatumReader()).meta
+                        parsed = json.loads(reader['avro.schema'].decode())
+                        avro_file.close()
+                        yield parsed
+                except Exception as e:
+                    result = dead_letter_message(
+                        destination= 'read_schema',
+                        row = element,
+                        error_message = e,
+                        stage='avro_schema'
+                    )
+                    yield TaggedOutput('error',result)
+        class schema_processing(beam.DoFn):
             def __init__(self, ignore_fields):
                 self.ignore_fields=ignore_fields
             # print("schema process for table {}".format(data["name"]))
-            def should_ignore(self,field, parent):
-                full_name = f"{parent}.{field}" if parent else field
-                return full_name in self.ignore_fields
-            def process_fields(self,fields, parent=""):
-                result = []
-                for field in fields:
-                    name = field["name"]
-                    if self.should_ignore(name, parent):
-                        continue
-                    if "type" in field and isinstance(field["type"], dict) and "fields" in field["type"]:
-                        field["type"]["fields"] = process_fields(field["type"]["fields"], f"{parent}.{name}" if parent else name)
-                    result.append(field)
-                return result
-            def process(self, data):
-                data["fields"] = self.process_fields(data["fields"])
-                yield data
-        class flatten_schema(beam.DoFn):
-            def process(self, data):
-                new_fields = []
-                new_fields.append({"name": "ingestion_meta_data_processing_timestamp", "type": ["null", {"type": "long", "logicalType": "timestamp-micros"}]})
-                for field in data["fields"]:
-                    field_name = field["name"]
-
-                    if field_name == "payload":
-                        for subfield in field["type"]["fields"]:
-                            new_fields.append(subfield)
-                    elif field_name == "source_metadata":
-                        for subfield in field["type"]["fields"]:
-                            subfield_name = f"source_metadata_{subfield['name']}"
-                            subfield["name"] = subfield_name
-                            new_fields.append(subfield)
-                    else:
-                        prefixed_name = f"ingestion_meta_data_{field_name}"
-                        field["name"] = prefixed_name
-                        new_fields.append(field)
-                new_fields.append({"name": "ingestion_meta_data_gcs_path", "type": ["null", {"type": "string"}]})
-                new_fields.append({"name": "row_hash", "type": ["null", {"type": "string"}]})
-                data["fields"] = new_fields
-                yield data
-        # Function to convert JSON schema to BigQuery schema
-        class convert_bq_schema(beam.DoFn):
-            """
-            Convert an Avro schema to a BigQuery schema
-            :param data: The Avro schema
-            :return: The BigQuery schema
-            """
             def setup(self):
                 self.AVRO_TO_BIGQUERY_TYPES = {
                 "record": "RECORD",
@@ -129,6 +92,44 @@ class arvo_schema(beam.PTransform):
                 "timestamp-micros": "TIMESTAMP",
                 "varchar": "STRING",
                 }
+            def _should_ignore(self,field, parent):
+                full_name = f"{parent}.{field}" if parent else field
+                return full_name in self.ignore_fields
+            def _process_fields(self,fields, parent=""):
+                result = []
+                for field in fields:
+                    name = field["name"]
+                    if self._should_ignore(name, parent):
+                        continue
+                    if "type" in field and isinstance(field["type"], dict) and "fields" in field["type"]:
+                        field["type"]["fields"] = self._process_fields(field["type"]["fields"], f"{parent}.{name}" if parent else name)
+                    result.append(field)
+                return result
+            def flatten_schema(self,data):
+                new_fields = []
+                new_fields.append({"name": "ingestion_meta_data_processing_timestamp", "type": ["null", {"type": "long", "logicalType": "timestamp-micros"}]})
+                for field in data["fields"]:
+                    field_name = field["name"]
+
+                    if field_name == "payload":
+                        for subfield in field["type"]["fields"]:
+                            new_fields.append(subfield)
+                    elif field_name == "source_metadata":
+                        for subfield in field["type"]["fields"]:
+                            subfield_name = f"source_metadata_{subfield['name']}"
+                            subfield["name"] = subfield_name
+                            new_fields.append(subfield)
+                    else:
+                        prefixed_name = f"ingestion_meta_data_{field_name}"
+                        field["name"] = prefixed_name
+                        new_fields.append(field)
+                new_fields.append({"name": "ingestion_meta_data_gcs_path", "type": ["null", {"type": "string"}]})
+                new_fields.append({"name": "row_hash", "type": ["null", {"type": "string"}]})
+                data["fields"] = new_fields
+                return data
+            def clean_unused_schema_fields(self, data):
+                data["fields"] = self._process_fields(data["fields"])
+                return data
             def _convert_type(self,avro_type):
                     """
                     Convert an Avro type to a BigQuery type
@@ -238,91 +239,130 @@ class arvo_schema(beam.PTransform):
                     "type": field_type,
                     "mode": mode,
                 }
-            def process(self, data):
+            def key_value_mapping(self,data):
+                return (data['name'], data['fields'])
+            def convert_bq_schema(self,data):
+                # Function to convert JSON schema to BigQuery schema
                 data["fields"] = list(map(lambda f: self._convert_field(f), data["fields"]))
-                yield data
-        class key_value_mapping(beam.DoFn):
-            def process(self, data):
-                yield (data['name'], data['fields'])
-        schema = ( # data must be in Arvo format
+                return data
+            def process(self,data):
+                try:
+                    _data = self.clean_unused_schema_fields(data)
+                except Exception as e:
+                    result = dead_letter_message(
+                        destination= 'schema_processing',
+                        row = data,
+                        error_message = e,
+                        stage='clean_unused_schema_fields'
+                    )
+                    yield TaggedOutput('error',result)
+                try:
+                    _data = self.flatten_schema(_data)
+                except Exception as e:
+                    result = dead_letter_message(
+                        destination= 'schema_processing',
+                        row = _data,
+                        error_message = e,
+                        stage='flatten_schema'
+                    )
+                    yield TaggedOutput('error',result)
+                try:
+                    _data = self.convert_bq_schema(_data)
+                except Exception as e:
+                    result = dead_letter_message(
+                        destination= 'schema_processing',
+                        row = _data,
+                        error_message = e,
+                        stage='convert_bq_schema'
+                    )
+                    yield TaggedOutput('error',result)
+                try:
+                    yield(self.key_value_mapping(_data))
+                except Exception as e:
+                    result = dead_letter_message(
+                        destination= 'schema_processing',
+                        row = _data,
+                        error_message = e,
+                        stage='key_value_mapping'
+                    )
+                    yield TaggedOutput('error',result)
+        _schema = ( # data must be in Arvo format
             pcoll
-            |"read schema from arvo file" >> beam.ParDo(read_schema())  
-            # | beam.WindowInto(GlobalWindows())
-            |"remove unused schema fields" >> beam.ParDo(clean_unused_schema_fields(self.ignore_fields))
-            |"flatten schema" >> beam.ParDo(flatten_schema())
-            |"convert arvo schema to BQ schema" >> beam.ParDo(convert_bq_schema())
-            | "(table name, data) mapping" >> beam.ParDo(key_value_mapping())
+            |"read schema from arvo file" >> beam.ParDo(read_schema()).with_outputs('error', main='schema')
+            )
+        
+        processing =(
+            _schema.schema
+            |"schema processing" >> beam.ParDo(schema_processing(self.ignore_fields)).with_outputs('error', main='schema')
         )
-        return schema
-class read_arvo_content(beam.PTransform):
+        # | beam.WindowInto(GlobalWindows())
+        return processing.schema
+class read_avro_content(beam.PTransform):
     def __init__(self,ignore_fields):
             self.ignore_fields =ignore_fields
     def expand(self, pcoll):
-        class remove_elements(beam.DoFn):
-            def recursive_remove(self,data, keys):
+        class avro_processing(beam.DoFn):
+            def _recursive_remove(self,data, keys):
                 if len(keys) == 1:
                     data.pop(keys[0], None)
                 else:
                     key = keys.pop(0)
                     if key in data:
-                        self.recursive_remove(data[key], keys)
+                        self._recursive_remove(data[key], keys)
                         if not data[key]:  # Remove the key if the sub-dictionary is empty
                             data.pop(key)
-            def process(self, data, removelist):
+            def remove_elements(self,data, removelist):
                 for item in removelist:
                     keys = item.split('.')
-                    self.recursive_remove(data, keys)
-                yield data
-        class flatten_data(beam.DoFn):
-            def convert_data(self,value):
+                    self._recursive_remove(data, keys)
+                return data
+            def _convert_data(self,value):
                 if isinstance(value, datetime.datetime):
                     return value
                 elif isinstance(value,list):
                     return str(value)
                 else: return value
-            def process(self, data):
+            def flatten_data(self,data):
                 flattened_data = {}
-                flattened_data['ingestion_meta_data_processing_timestamp'] = self.convert_data((datetime.datetime.now(datetime.timezone.utc))) 
+                flattened_data['ingestion_meta_data_processing_timestamp'] = self._convert_data((datetime.datetime.now(datetime.timezone.utc))) 
                 for key, value in data.items():
                     if key == "payload":
                         for payload_name,payload_val in value.items():
-                            value[payload_name] = self.convert_data(payload_val)
+                            value[payload_name] = self._convert_data(payload_val)
                         flattened_data.update(value)
                     elif key == "source_metadata":
                         for sub_key, sub_value in value.items():
-                            flattened_data[f"source_metadata_{sub_key}"] = self.convert_data(sub_value)
+                            flattened_data[f"source_metadata_{sub_key}"] = self._convert_data(sub_value)
                     else:
-                        flattened_data[f"ingestion_meta_data_{key}"] = self.convert_data(value)
+                        flattened_data[f"ingestion_meta_data_{key}"] = self._convert_data(value)
                 # print("processing data for table {}".format(flattened_data["source_metadata_table"]))
-                yield flattened_data
-        # Function to calculate the hash of a record
-        class calculate_hash_payload(beam.DoFn):
-            def process(self, data):
+                return flattened_data
+                
+            def calculate_hash_payload(self, data):
+                # Function to calculate the hash of a record
                 # You can modify the hashing function and encoding as needed
                 record_str = str(data['payload'])  # Convert record to string if necessary
                 record_hash = hashlib.sha256(record_str.encode('utf-8')).hexdigest()
                 data['payload']['row_hash'] = record_hash
-                yield data
-        class mapping_table_name(beam.DoFn):
-            def process(self,data):
-                yield (data['ingestion_meta_data_object'],data)
-        class merge_with_gcs_link_path(beam.DoFn):
-            def process(self,data):
-                data[1]['gcs_path'] = data[0]
-                yield data[1]
+                return data
             
+            def mapping_table_name(self, data):
+                return (data['ingestion_meta_data_object'],data)
+            def merge_with_gcs_link_path(self, data):
+                data[1]['gcs_path'] = data[0]
+                return data[1]
+            def process(self,data, ignore_fields):
+                _data = self.merge_with_gcs_link_path(data)
+                _data = self.remove_elements(_data,ignore_fields)
+                _data = self.calculate_hash_payload(_data)
+                _data = self.flatten_data(_data)
+                yield self.mapping_table_name(_data)
         # if avro format:
-        data = ( # data must be in Arvo format
+        return ( # data must be in Arvo format
             pcoll
             | beam.io.ReadAllFromAvro(with_filename =True)
-            | "add gcs path" >> beam.ParDo(merge_with_gcs_link_path())
-            | "remove unrelated fields" >> beam.ParDo(remove_elements(),self.ignore_fields)
-            | "calculate row hash on payload" >>  beam.ParDo(calculate_hash_payload())
-            | "flatten data" >> beam.ParDo(flatten_data())
-            | "mapping table name to data" >> beam.ParDo(mapping_table_name())
-            
+            | "avro processing" >> beam.ParDo(avro_processing(), self.ignore_fields)
         )
-        return data
 class write_to_BQ(beam.PTransform):
     def __init__(self,project ,dataset):
         super().__init__()

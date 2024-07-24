@@ -102,5 +102,11 @@ class enrich_data(beam.DoFn):
         data[1]['data'] = list_of_data
         data[1]['bq_schema'] = schema
         yield (data[0],data[1])
-def write_dead_letter(data):
-    pass
+def dead_letter_message(destination,row,error_message,stage):
+    return {
+            "destination": destination,
+            "row": row,
+            "error_message": error_message,
+            "stage": stage,
+            "timestamp":(datetime.datetime.now(datetime.timezone.utc))
+            }
