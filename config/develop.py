@@ -16,7 +16,7 @@ beam_config={
 }
 pubsub_config={
     "project": "pj-bu-dw-data-sbx",
-    "subscription": ["test_sub", "gs_noti_dead_letter_sub","test1mess"]  # test1mess test_sub
+    "subscription": ["test1mess"]  # test1mess test_sub gs_noti_dead_letter_sub
 }
 cdc_ignore_fields = [
     'stream_name',
@@ -25,7 +25,6 @@ cdc_ignore_fields = [
     'source_metadata.tx_id',
     'source_metadata.lsn',
 ]
-
 bigquery_datalake ={
     "project": "pj-bu-dw-data-sbx",
     "region": "europe-west1",

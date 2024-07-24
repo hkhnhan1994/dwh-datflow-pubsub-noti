@@ -5,7 +5,7 @@ from apache_beam.io.gcp.bigquery_tools import  get_bq_tableschema, BigQueryWrapp
 from google.cloud import bigquery
 import datetime
 import logging
-print = logging.info
+# print = logging.info
 
 class merge_schema(beam.DoFn):
     def process(self, merge_schema):
@@ -101,7 +101,6 @@ class enrich_data(beam.DoFn):
             list_of_data.append(fill_null)
         data[1]['data'] = list_of_data
         data[1]['bq_schema'] = schema
-        # data[1]['bq_schema'][0] = data[1]['bq_schema']['schema']
         yield (data[0],data[1])
 def write_dead_letter(data):
     pass
