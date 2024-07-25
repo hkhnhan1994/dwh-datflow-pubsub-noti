@@ -16,7 +16,7 @@ beam_config={
 }
 pubsub_config={
     "project": "pj-bu-dw-data-sbx",
-    "subscription": "test_sub" # test1mess test_sub
+    "subscription": ["test1mess"]  # test1mess test_sub gs_noti_dead_letter_sub
 }
 cdc_ignore_fields = [
     'stream_name',
@@ -25,10 +25,29 @@ cdc_ignore_fields = [
     'source_metadata.tx_id',
     'source_metadata.lsn',
 ]
-
 bigquery_datalake ={
     "project": "pj-bu-dw-data-sbx",
     "region": "europe-west1",
-    "dataset": "lake_view_cmd",
+    "dataset": "lake_view_cmd"
 }
+dead_letter = {
+"bq_channel":
+    {
+        "table_id": "error_log_table",
+        "project": "pj-bu-dw-data-sbx",
+        "dataset": "lake_view_cmd",
+        "schema":{'fields': [
+                {'name': 'destination', 'type': 'STRING', 'mode': 'NULLABLE'},
+                {'name': 'row', 'type': 'STRING', 'mode': 'NULLABLE'},
+                {'name': 'error_message', 'type': 'STRING', 'mode': 'NULLABLE'},
+                {'name': 'stage', 'type': 'STRING', 'mode': 'NULLABLE'},
+                {'name': 'timestamp', 'type': 'TIMESTAMP', 'mode': 'NULLABLE'}
+                ]},
+    },
+"chat_channel":
+    {
+        "topics": "gs_noti_dead_letter",
+        "project": "pj-bu-dw-data-sbx",
+    },
+        }
 
