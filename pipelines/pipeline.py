@@ -6,7 +6,7 @@ from .functions import  merge_schema, read_bq_schema, create_table, enrich_data
 from config.develop import cdc_ignore_fields, pubsub_config, bigquery_datalake, dead_letter
 from apache_beam.transforms.window import FixedWindows
 
-# print = logging.info
+print = logging.info
 
 def run(beam_options):
     with beam.Pipeline(options=beam_options) as p:

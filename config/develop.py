@@ -9,14 +9,14 @@ beam_config={
     "worker_region": 'europe-west1',
     "machine_type": 'n1-standard-1',
     "disk_size_gb": 10,
-    "runner": "DirectRunner", # DirectRunner DataflowRunner
+    "runner": "DataflowRunner", # DirectRunner DataflowRunner
     "setup_file": './setup.py',
     "save_main_session" : True,
     "streaming": True
 }
 pubsub_config={
     "project": "pj-bu-dw-data-sbx",
-    "subscription": ["test1mess"]  # test1mess test_sub gs_noti_dead_letter_sub
+    "subscription": ["test1mess","test_sub"]  # test1mess test_sub gs_noti_dead_letter_sub
 }
 cdc_ignore_fields = [
     'stream_name',

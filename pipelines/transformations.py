@@ -14,7 +14,7 @@ from .functions import dead_letter_message, read_schema, avro_schema_to_bq_schem
 import datetime
 
 import logging
-# print = logging.info
+print = logging.info
 class read_path_from_pubsub(beam.PTransform):
     def __init__(self, project: str, subscription: list, file_format = ['avro']):
         self.project=project
