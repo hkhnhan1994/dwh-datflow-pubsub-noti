@@ -11,7 +11,7 @@ from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.pvalue import TaggedOutput
 import hashlib
 import logging
-# print = logging.info
+print = logging.info
 
 class merge_schema(beam.DoFn):
     def process(self, merge_schema):
