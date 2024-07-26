@@ -1,3 +1,5 @@
+"""Functions that use in transformations."""
+
 import apache_beam as beam
 import json
 import io
@@ -12,8 +14,8 @@ from apache_beam.pvalue import TaggedOutput
 import hashlib
 import logging
 print = logging.info
-
 class merge_schema(beam.DoFn):
+    """Merge current schema into exists schema."""
     def process(self, merge_schema):
         try:
             # Convert lists to dictionaries with "name" as the key
@@ -44,6 +46,7 @@ class merge_schema(beam.DoFn):
                 )
                 yield TaggedOutput('error',result)
 class read_bq_schema(beam.DoFn):
+    """Read table schema from Bigquery."""
     def setup(self):
         self.client = bigquery.Client()
     def process(self,schema, project, dataset):
@@ -69,6 +72,7 @@ class read_bq_schema(beam.DoFn):
                 )
                 yield TaggedOutput('error',result)
 class create_table(beam.DoFn):
+    """Create Bigquery table if not exists."""
     def setup(self):
         self.bq_table = BigQueryWrapper()
     def _parse_schema_field(self,field):
@@ -116,6 +120,7 @@ class create_table(beam.DoFn):
             )
             yield TaggedOutput('error',result)
 class enrich_data(beam.DoFn):
+    """Filled the missing columns when schema changes happened."""
     def process(self, data):
         try:
             schema= data[1]['bq_schema'][0]
@@ -138,6 +143,7 @@ class enrich_data(beam.DoFn):
             )
             yield TaggedOutput('error',result)    
 class read_schema(beam.DoFn):
+    """Read schema from avro file stored in GCS."""
     def setup(self):
         self.fs = GCSFileSystem(PipelineOptions())
     def process(self, element):
@@ -159,6 +165,7 @@ class read_schema(beam.DoFn):
             )
             yield TaggedOutput('error',result)
 class avro_schema_to_bq_schema(beam.DoFn):
+    """Process the schema read from GCS, pairs it into Bigquery format."""
     def __init__(self, ignore_fields):
         self.ignore_fields=ignore_fields
     # print("schema process for table {}".format(data["name"]))
@@ -351,6 +358,7 @@ class avro_schema_to_bq_schema(beam.DoFn):
             )
             yield TaggedOutput('error',result)
 class avro_processing(beam.DoFn):
+    """Process the avro content, including cleanup flatten data."""
     def _recursive_remove(self,data, keys):
         if len(keys) == 1:
             data.pop(keys[0], None)
@@ -416,6 +424,7 @@ class avro_processing(beam.DoFn):
             )
             yield TaggedOutput('error',result)
 def dead_letter_message(destination,row,error_message,stage):
+    """The letter format to return whenever the error orrcurs."""
     return  ("error" ,{
             "destination": destination,
             "row": row,

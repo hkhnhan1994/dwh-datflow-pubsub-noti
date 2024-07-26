@@ -1,14 +1,16 @@
+"""Main pipline for structured data lake."""
 
 import logging
 import apache_beam as beam
 from .transformations import  write_to_BQ, read_path_from_pubsub, schema_processing, read_avro_content, write_error_to_alert
-from .functions import  merge_schema, read_bq_schema, create_table, enrich_data
+from .functions import enrich_data
 from config.develop import cdc_ignore_fields, pubsub_config, bigquery_datalake, dead_letter
 from apache_beam.transforms.window import FixedWindows
 
 print = logging.info
 
 def run(beam_options):
+    """Forming the pipeline."""
     with beam.Pipeline(options=beam_options) as p:
         read_file_path = (
             p

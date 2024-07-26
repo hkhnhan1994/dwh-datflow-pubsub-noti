@@ -1,21 +1,28 @@
+"""Transformations that formed the whole pipeline."""
+
 # import logging
 import apache_beam as beam
 import json
-
-import io
 from apache_beam.pvalue import AsDict
-
 from apache_beam.io.gcp.bigquery import WriteToBigQuery
 from apache_beam.transforms.window import FixedWindows
 from apache_beam.pvalue import TaggedOutput
-# from apache_beam.io.gcp.bigquery_tools import  get_bq_tableschema, BigQueryWrapper
-# from google.cloud import bigquery
-from .functions import dead_letter_message, read_schema, avro_schema_to_bq_schema, read_bq_schema, merge_schema, create_table, avro_processing
+from .functions import (
+    read_schema, 
+    avro_schema_to_bq_schema, 
+    read_bq_schema, 
+    merge_schema, 
+    create_table, 
+    avro_processing
+)
 import datetime
 
 import logging
 print = logging.info
 class read_path_from_pubsub(beam.PTransform):
+    """Ptransform to read data from Pubsub, could add multiple topics and subscriptions.
+       The returned values is a file's link path on GCS.
+    """
     def __init__(self, project: str, subscription: list, file_format = ['avro']):
         self.project=project
         self.subscription =subscription
@@ -41,21 +48,13 @@ class read_path_from_pubsub(beam.PTransform):
         )
         return get_message_contains_file_url
 class schema_processing(beam.PTransform):
+    """Ptransform to process the schema read from GCS. including the schema changes handler."""
     def __init__(self,ignore_fields,project,dataset,error_handler):
             self.ignore_fields =ignore_fields
             self.project = project
             self.dataset = dataset
             self.error_handler=error_handler
     def expand(self, pcoll):
-        def short_event(event):
-            if event[0]=='error':  
-                yield TaggedOutput('error',event)
-            else: yield event
-        class tagoutput(beam.DoFn):
-            def process(self, event):
-                if event[0]=='error':  
-                    yield TaggedOutput('error',event)
-                else: yield event
         _schema = ( # data must be in Arvo format
             pcoll
             |"read schema from arvo file" >> beam.ParDo(read_schema()).with_outputs('error', main='schema')
@@ -78,7 +77,7 @@ class schema_processing(beam.PTransform):
             merge_exists_to_current_schema.schema
             |beam.ParDo(create_table(),self.project, self.dataset).with_outputs('error', main='schema')
         )
-        errors = (
+        _ = (
             (_schema.error, 
              to_bq_schema.error, 
              read_from_bq.error, 
@@ -89,6 +88,7 @@ class schema_processing(beam.PTransform):
         )
         return create_table_if_needed.schema
 class read_avro_content(beam.PTransform):
+    """Ptransform to process the avro's content read from GCS."""
     def __init__(self,ignore_fields,error_handler):
             self.ignore_fields =ignore_fields
             self.error_handler =error_handler
@@ -99,12 +99,13 @@ class read_avro_content(beam.PTransform):
             | beam.io.ReadAllFromAvro(with_filename =True)
             | "avro processing" >> beam.ParDo(avro_processing(), self.ignore_fields).with_outputs('error', main='data')
         )
-        errors = (
+        _ = (
             (data.error,)
             | "write data process error to channels" >> write_error_to_alert(self.error_handler)
         )
         return data.data
 class write_to_BQ(beam.PTransform):
+    """Ptransform to write the processed data to Bigquery."""
     def __init__(self,project ,dataset):
         super().__init__()
         self.project=project
@@ -166,6 +167,7 @@ class write_to_BQ(beam.PTransform):
         return get_errors
 
 class write_error_to_alert(beam.PTransform):
+    """Ptransform to write error to pubsub and Bigquery channels."""
     def __init__(self, config):
         self.config = config
     def expand(self, pcoll):

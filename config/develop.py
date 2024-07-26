@@ -1,3 +1,5 @@
+"""Configuration of the dataflow."""
+
 beam_config={
     "job_name": "cmd-stream",
     "staging_location": "gs://test_bucket_upvn/datastream-postgres/Beam-pubsub/staging",
