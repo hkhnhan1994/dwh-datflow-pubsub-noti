@@ -1,54 +1,54 @@
 """CCreate a table in prod using a sql query and impersonation."""
 
 from google.cloud import bigquery
-import google.oauth2.credentials
-import googleapiclient.discovery
+# import google.oauth2.credentials
+# import googleapiclient.discovery
 import io
 import json
 import psycopg2
 import pandas as pd
-def get_credentials(service_account):
-    """
-    Return a credential from a service account.
+# def get_credentials(service_account):
+#     """
+#     Return a credential from a service account.
 
-    :param service_account: the full name of the service account
-    :return: the credential to be used for authentication
-    """
-    iam = googleapiclient.discovery.build("iamcredentials", "v1")
-    token = (
-        iam.projects()
-        .serviceAccounts()
-        .generateAccessToken(
-            name=f"projects/-/serviceAccounts/{service_account}".format(
-                service_account=service_account
-            ),
-            body={
-                "lifetime": "600s",
-                "scope": [
-                    "https://www.googleapis.com/auth/bigquery",
-                    "https://www.googleapis.com/auth/bigquery.insertdata",
-                    "https://www.googleapis.com/auth/cloud-platform",
-                    "https://www.googleapis.com/auth/devstorage.full_control",
-                    "https://www.googleapis.com/auth/cloudkms",
-                    "https://www.googleapis.com/auth/logging.admin",
-                    "https://www.googleapis.com/auth/monitoring",
-                ],
-            },
-        )
-    )
-    token = token.execute()["accessToken"]
-    credentials = google.oauth2.credentials.Credentials(token)
-    return credentials
+#     :param service_account: the full name of the service account
+#     :return: the credential to be used for authentication
+#     """
+#     iam = googleapiclient.discovery.build("iamcredentials", "v1")
+#     token = (
+#         iam.projects()
+#         .serviceAccounts()
+#         .generateAccessToken(
+#             name=f"projects/-/serviceAccounts/{service_account}".format(
+#                 service_account=service_account
+#             ),
+#             body={
+#                 "lifetime": "600s",
+#                 "scope": [
+#                     "https://www.googleapis.com/auth/bigquery",
+#                     "https://www.googleapis.com/auth/bigquery.insertdata",
+#                     "https://www.googleapis.com/auth/cloud-platform",
+#                     "https://www.googleapis.com/auth/devstorage.full_control",
+#                     "https://www.googleapis.com/auth/cloudkms",
+#                     "https://www.googleapis.com/auth/logging.admin",
+#                     "https://www.googleapis.com/auth/monitoring",
+#                 ],
+#             },
+#         )
+#     )
+#     token = token.execute()["accessToken"]
+#     credentials = google.oauth2.credentials.Credentials(token)
+#     return credentials
 
 
-# "sa-dw-bqmaintenance-dev@pj-bu-dw-orch-dev.iam.gserviceaccount.com"
-# "sa-dw-bqmaintenance-uat@pj-bu-dw-orch-uat.iam.gserviceaccount.com"
-# "sa-dw-bqmaintenance-prod@pj-bu-dw-orch-prod.iam.gserviceaccount.com"
+# # "sa-dw-bqmaintenance-dev@pj-bu-dw-orch-dev.iam.gserviceaccount.com"
+# # "sa-dw-bqmaintenance-uat@pj-bu-dw-orch-uat.iam.gserviceaccount.com"
+# # "sa-dw-bqmaintenance-prod@pj-bu-dw-orch-prod.iam.gserviceaccount.com"
 
-env = "dev"  # prod uat dev
-service_account = (
-    f"sa-dw-bqmaintenance-{env}@pj-bu-dw-orch-{env}.iam.gserviceaccount.com"
-)
+# env = "dev"  # prod uat dev
+# service_account = (
+#     f"sa-dw-bqmaintenance-{env}@pj-bu-dw-orch-{env}.iam.gserviceaccount.com"
+# )
 
 project = "pj-bu-dw-raw-dev"
 dataset = "B1_BCOM"
@@ -64,12 +64,10 @@ def read_bq(project,dataset,table_id,client):
         f"""select * from {project}.{dataset}.{table_id} limit 10"""
         ) 
     rows = query_job.result().to_dataframe()
-    # records = [dict(row) for row in rows]
-    # json_obj = json.dumps(str(records))
-    # schema = client.get_table(f"{project}.{dataset}.{table_id}")
-    # f = io.StringIO("")
-    # client.schema_to_json(schema.schema,f)
-    return rows #, json.loads(f.getvalue()) # return data and schema
+    schema = client.get_table(f"{project}.{dataset}.{table_id}")
+    f = io.StringIO("")
+    client.schema_to_json(schema.schema,f)
+    return rows , json.loads(f.getvalue()) # return data and schema
 
 def convert_bq_schema_to_postgres(bigquery_schema):
     data_type_mapping = {
@@ -94,7 +92,7 @@ def convert_bq_schema_to_postgres(bigquery_schema):
     return postgres_schema
 
 
-def to_postgres(data, 
+def create_table(schema, 
     pg_host='your_postgres_host',
     pg_port='your_postgres_port',
     pg_dbname='your_postgres_dbname',
@@ -115,10 +113,12 @@ def to_postgres(data,
 
     # Create a PostgreSQL table if it doesn't exist
     create_table_query = f"""
+    DROP TABLE IF EXISTS {pg_table};
     CREATE TABLE IF NOT EXISTS {pg_table} (
-        {', '.join([f'{col} TEXT' for col in data.columns])}
+        {', '.join([f'"{col}" TEXT' for col in schema['name']])}
     );
     """
+    print(create_table_query)
     cursor.execute(create_table_query)
     conn.commit()
 
@@ -141,17 +141,23 @@ def read_bq_to_postgres(
     client,
     pg_host='localhost',
     pg_port='5432',
-    pg_dbname='cmd_db',
-    pg_user='datastream_user',
+    pg_dbname='db_cmd',
+    pg_user='db_cmd_user',
     pg_password='123456'):
     tables = client.list_tables(dataset)
     for table in tables:
-        data = read_bq(project,dataset,table.table_id,client)
-        to_postgres(data, pg_host,pg_port,pg_dbname,pg_user,pg_password,table.table_id)
+        data, schema = read_bq(project,dataset,table.table_id,client)
+        postgres_schema = convert_bq_schema_to_postgres(schema)
+        
+        # data = data.where(pd.notnull(data), None)
+        create_table(postgres_schema, pg_host,pg_port,pg_dbname,pg_user,pg_password,table.table_id)
+        
+        data = data.replace({pd.NA: None})
+client = bigquery.Client(project=project)
+bq_data, bq_schema  = read_bq(project,dataset,table_id,client)
+postgres_schema = convert_bq_schema_to_postgres(bq_schema)
 
-# bq_data, bq_schema  = read_bq(project,dataset,table_id,service_account)
-# postgres_schema = convert_bq_schema_to_postgres(bq_schema)
-# print(bq_data)
-credentials = get_credentials(service_account)
-client = bigquery.Client(project=project,credentials=credentials)
-read_bq_to_postgres(project,dataset,client)
+print(postgres_schema)
+# credentials = get_credentials(service_account)
+# client = bigquery.Client(project=project)
+# read_bq_to_postgres(project,dataset,client)
