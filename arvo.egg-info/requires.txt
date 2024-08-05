@@ -1,3 +1,0 @@
-PyYAML
-pyfiglet
-avro==1.11.3
