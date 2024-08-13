@@ -7,6 +7,7 @@ import io
 import json
 import psycopg2
 import pandas as pd
+from tqdm import tqdm
 # def get_credentials(service_account):
 #     """
 #     Return a credential from a service account.
@@ -51,7 +52,15 @@ import pandas as pd
 # )
 
 project = "pj-bu-dw-raw-dev"
-dataset = "P1_PCMD"
+dataset = [
+        #    "P1_PCMD",
+           "H1_HEHE",
+        #    "H2_HEHE",
+        #    "H3_HEHE",
+        #    "H1_HKLC",
+        #    "H2_HKLC",
+        #    "H3_HKLC",
+           ]
 # table_id = "customers"
 
 
@@ -61,7 +70,7 @@ dataset = "P1_PCMD"
 def read_bq(project,dataset,table_id,client):
 
     query_job = client.query(
-        f"""select * from {project}.{dataset}.{table_id}"""
+        f"""select * from {project}.{dataset}.{table_id} limit 5000"""
         ) 
     rows = query_job.result().to_dataframe()
     schema = client.get_table(f"{project}.{dataset}.{table_id}")
@@ -78,7 +87,8 @@ def convert_bq_schema_to_postgres(bigquery_schema):
     "TIMESTAMP": "TIMESTAMP",
     "FLOAT": "REAL",
     "NUMERIC": "DECIMAL",
-    "DATETIME": "TIMESTAMP"
+    "DATETIME": "TIMESTAMP",
+    "BOOLEAN": "BOOLEAN"
     # ... add more mappings as needed
     }
     postgres_schema = {}
@@ -92,7 +102,7 @@ def convert_bq_schema_to_postgres(bigquery_schema):
         return field['name'],postgres_type
     for field in bigquery_schema:
         col, data_type = convert_field(field)
-        postgres_schema.update({col:data_type})
+        postgres_schema.update({col.lower():data_type})
     return postgres_schema
 # Function to convert a value to PostgreSQL format
 def to_pg_format(value):
@@ -131,7 +141,7 @@ def create_table_insert_data_pg(data,schema,
         cursor = conn.cursor()
         
         #test schema change
-        schema.update({'extra_col': 'TEXT'})
+        # schema.update({'extra_col': 'TEXT'})
         # Create a PostgreSQL table if it doesn't exist
         
         create_table_query = f"""
@@ -146,15 +156,15 @@ def create_table_insert_data_pg(data,schema,
 
         # Insert data into PostgreSQL
         counter = 0
-        for index, row in data.iterrows():
+        for index, row in tqdm(data.iterrows(), total=data.shape[0], desc="Inserting rows"):
             # Extract column names
-            columns = ', '.join(data.columns)
+            columns = ', '.join(data.columns).lower()
             #test schema change
-            columns = columns+ ', extra_col'
+            # columns = columns+ ', extra_col'
             # Convert row values to PostgreSQL format
             values = [to_pg_format(x) for x in row.values]
             #test schema change
-            values.append('schema changes test')
+            # values.append('schema changes test')
             # Create the INSERT query with placeholders
             insert_query = f"""
             INSERT INTO {pg_table} ({columns}) 
@@ -184,22 +194,23 @@ def create_table_insert_data_pg(data,schema,
 
 def read_bq_to_postgres(
     project,
-    dataset,
+    datasets,
     client,
     pg_host='localhost',
     pg_port='5432',
     pg_dbname='db_cmd',
     pg_user='db_cmd_user',
     pg_password='123456'):
-    tables = client.list_tables(dataset)
-    for table in tables:
-        data, schema = read_bq(project,dataset,table.table_id,client)
-        postgres_schema = convert_bq_schema_to_postgres(schema)
-        # print(postgres_schema)
-        # data = data.where(pd.notnull(data), None)
-        create_table_insert_data_pg(data,postgres_schema, pg_host,pg_port,pg_dbname,pg_user,pg_password,table.table_id)
-        
-        data = data.replace({pd.NA: None})
+    for dataset in datasets:
+        tables = client.list_tables(dataset)
+        for table in tables:
+            data, schema = read_bq(project,dataset,table.table_id,client)
+            postgres_schema = convert_bq_schema_to_postgres(schema)
+            # print(postgres_schema)
+            # data = data.where(pd.notnull(data), None)
+            create_table_insert_data_pg(data,postgres_schema, pg_host,pg_port,pg_dbname,pg_user,pg_password,table.table_id)
+            
+            data = data.replace({pd.NA: None})
 
 client = bigquery.Client(project=project)
 
