@@ -18,7 +18,7 @@ from .functions import (
 import datetime
 
 import logging
-print = logging.info
+# print = logging.info
 class read_path_from_pubsub(beam.PTransform):
     """Ptransform to read data from Pubsub, could add multiple topics and subscriptions.
        The returned values is a file's link path on GCS.
@@ -171,14 +171,24 @@ class write_error_to_alert(beam.PTransform):
     def __init__(self, config):
         self.config = config
     def expand(self, pcoll):
-        flatten_errors = ( pcoll |"flatten error" >> beam.Flatten())
+        def convert_to_string(data):
+            for key, val in data.items():
+                data[key]=str(val)
+            return data
+        flatten_errors = ( pcoll 
+                          |"flatten error" >> beam.Flatten()
+                          |beam.Map(lambda x: x[-1])
+                        #   |beam.Map(print)
+                          )
         pubsub_topic = "projects/{}/topics/{}".format(self.config['chat_channel']['project'],self.config['chat_channel']['topics'])
         to_pubsub =(
             flatten_errors
+            | beam.Map(lambda x: str(x).encode('utf-8'))
             |beam.io.WriteToPubSub(pubsub_topic)
         )
         to_bq_error_log =(
             flatten_errors
+            |beam.Map(convert_to_string)
             |beam.io.WriteToBigQuery(
                 method=WriteToBigQuery.Method.STREAMING_INSERTS,
                 table="{}:{}.{}".format(self.config['bq_channel']['project'],self.config['bq_channel']['dataset'],self.config['bq_channel']['table_id']),

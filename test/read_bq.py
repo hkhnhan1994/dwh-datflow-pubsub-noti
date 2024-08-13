@@ -51,8 +51,8 @@ import pandas as pd
 # )
 
 project = "pj-bu-dw-raw-dev"
-dataset = "B1_BCOM"
-table_id = "customers"
+dataset = "P1_PCMD"
+# table_id = "customers"
 
 
 
@@ -61,7 +61,7 @@ table_id = "customers"
 def read_bq(project,dataset,table_id,client):
 
     query_job = client.query(
-        f"""select * from {project}.{dataset}.{table_id} limit 10"""
+        f"""select * from {project}.{dataset}.{table_id}"""
         ) 
     rows = query_job.result().to_dataframe()
     schema = client.get_table(f"{project}.{dataset}.{table_id}")
@@ -75,6 +75,10 @@ def convert_bq_schema_to_postgres(bigquery_schema):
     "BYTES": "BYTEA",
     "INTEGER": "INTEGER",
     "FLOAT": "DOUBLE PRECISION",
+    "TIMESTAMP": "TIMESTAMP",
+    "FLOAT": "REAL",
+    "NUMERIC": "DECIMAL",
+    "DATETIME": "SMALLDATETIME"
     # ... add more mappings as needed
     }
     postgres_schema = {}
@@ -90,9 +94,23 @@ def convert_bq_schema_to_postgres(bigquery_schema):
         col, data_type = convert_field(field)
         postgres_schema.update({col:data_type})
     return postgres_schema
+# Function to convert a value to PostgreSQL format
+def to_pg_format(value):
+    if pd.isna(value) or value == pd.NaT or value is None:  # This handles None and NaT
+        return None
+    elif isinstance(value, bool):
+        return value
+    elif isinstance(value, (int, float)):
+        return value
+    elif isinstance(value, str):
+        return value
+    elif isinstance(value, pd.Timestamp):
+        return value.isoformat()
+    else:
+        return str(value)
 
 
-def create_table(schema, 
+def create_table_insert_data_pg(data,schema,
     pg_host='your_postgres_host',
     pg_port='your_postgres_port',
     pg_dbname='your_postgres_dbname',
@@ -109,31 +127,56 @@ def create_table(schema,
     )
 
     # Create a cursor object
-    cursor = conn.cursor()
+    try:
+        cursor = conn.cursor()
 
-    # Create a PostgreSQL table if it doesn't exist
-    create_table_query = f"""
-    DROP TABLE IF EXISTS {pg_table};
-    CREATE TABLE IF NOT EXISTS {pg_table} (
-        {', '.join([f'"{col}" TEXT' for col in schema['name']])}
-    );
-    """
-    print(create_table_query)
-    cursor.execute(create_table_query)
-    conn.commit()
-
-    # Insert data into PostgreSQL
-    for index, row in data.iterrows():
-        insert_query = f"""
-        INSERT INTO {pg_table} ({', '.join(data.columns)}) 
-        VALUES ({', '.join(['%s'] * len(row))})
+        # Create a PostgreSQL table if it doesn't exist
+        create_table_query = f"""
+        DROP TABLE IF EXISTS {pg_table};
+        CREATE TABLE IF NOT EXISTS {pg_table} (
+            {', '.join([f'"{col}" {type}' for col,type in schema.items()])}
+        );
         """
-        cursor.execute(insert_query, tuple(row))
+        # print(create_table_query)
+        cursor.execute(create_table_query)
+        conn.commit()
 
-    # Commit the transaction and close the connection
-    conn.commit()
-    cursor.close()
-    conn.close()
+        # Insert data into PostgreSQL
+        counter = 0
+        for index, row in data.iterrows():
+            # Extract column names
+            columns = ', '.join(data.columns)
+            
+            # Convert row values to PostgreSQL format
+            # Convert row values to PostgreSQL format
+            values = [to_pg_format(x) for x in row.values]
+
+            # Create the INSERT query with placeholders
+            insert_query = f"""
+            INSERT INTO {pg_table} ({columns}) 
+            VALUES ({', '.join(['%s'] * len(values))})
+            """
+            insert_query = insert_query.replace("'", '"')
+            # Print the query for debugging purposes
+            # print(insert_query)
+            try:
+                cursor.execute(insert_query, tuple(values))
+                counter = counter+1
+            except Exception as e:
+                print(e)
+                print(values)
+                conn.rollback()
+                continue
+        print(f"inserted {counter} into table {pg_table}")
+        # Commit the transaction and close the connection
+        conn.commit()
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        conn.rollback()
+    finally:
+        # Close the cursor and connection
+        cursor.close()
+        conn.close()
 
 def read_bq_to_postgres(
     project,
@@ -148,16 +191,15 @@ def read_bq_to_postgres(
     for table in tables:
         data, schema = read_bq(project,dataset,table.table_id,client)
         postgres_schema = convert_bq_schema_to_postgres(schema)
-        
+        # print(postgres_schema)
         # data = data.where(pd.notnull(data), None)
-        create_table(postgres_schema, pg_host,pg_port,pg_dbname,pg_user,pg_password,table.table_id)
+        create_table_insert_data_pg(data,postgres_schema, pg_host,pg_port,pg_dbname,pg_user,pg_password,table.table_id)
         
         data = data.replace({pd.NA: None})
-client = bigquery.Client(project=project)
-bq_data, bq_schema  = read_bq(project,dataset,table_id,client)
-postgres_schema = convert_bq_schema_to_postgres(bq_schema)
 
-print(postgres_schema)
-# credentials = get_credentials(service_account)
-# client = bigquery.Client(project=project)
-# read_bq_to_postgres(project,dataset,client)
+client = bigquery.Client(project=project)
+
+read_bq_to_postgres(project,dataset,client)
+
+# bq_data, bq_schema  = read_bq(project,dataset,table_id,client)
+# postgres_schema = convert_bq_schema_to_postgres(bq_schema)
