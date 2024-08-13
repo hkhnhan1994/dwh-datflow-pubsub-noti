@@ -78,7 +78,7 @@ def convert_bq_schema_to_postgres(bigquery_schema):
     "TIMESTAMP": "TIMESTAMP",
     "FLOAT": "REAL",
     "NUMERIC": "DECIMAL",
-    "DATETIME": "SMALLDATETIME"
+    "DATETIME": "TIMESTAMP"
     # ... add more mappings as needed
     }
     postgres_schema = {}
@@ -129,8 +129,11 @@ def create_table_insert_data_pg(data,schema,
     # Create a cursor object
     try:
         cursor = conn.cursor()
-
+        
+        #test schema change
+        schema.update({'extra_col': 'TEXT'})
         # Create a PostgreSQL table if it doesn't exist
+        
         create_table_query = f"""
         DROP TABLE IF EXISTS {pg_table};
         CREATE TABLE IF NOT EXISTS {pg_table} (
@@ -146,11 +149,12 @@ def create_table_insert_data_pg(data,schema,
         for index, row in data.iterrows():
             # Extract column names
             columns = ', '.join(data.columns)
-            
-            # Convert row values to PostgreSQL format
+            #test schema change
+            columns = columns+ ', extra_col'
             # Convert row values to PostgreSQL format
             values = [to_pg_format(x) for x in row.values]
-
+            #test schema change
+            values.append('schema changes test')
             # Create the INSERT query with placeholders
             insert_query = f"""
             INSERT INTO {pg_table} ({columns}) 

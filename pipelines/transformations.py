@@ -18,7 +18,7 @@ from .functions import (
 import datetime
 
 import logging
-# print = logging.info
+print = logging.info
 class read_path_from_pubsub(beam.PTransform):
     """Ptransform to read data from Pubsub, could add multiple topics and subscriptions.
        The returned values is a file's link path on GCS.
