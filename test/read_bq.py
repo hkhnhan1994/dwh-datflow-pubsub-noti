@@ -7,59 +7,64 @@ import io
 import json
 import psycopg2
 import pandas as pd
-from tqdm import tqdm
-# def get_credentials(service_account):
-#     """
-#     Return a credential from a service account.
+from tqdm import tqdm   
+import google.oauth2.credentials
+import googleapiclient.discovery
+import datetime
+def get_credentials(service_account):
+    """
+    Return a credential from a service account.
 
-#     :param service_account: the full name of the service account
-#     :return: the credential to be used for authentication
-#     """
-#     iam = googleapiclient.discovery.build("iamcredentials", "v1")
-#     token = (
-#         iam.projects()
-#         .serviceAccounts()
-#         .generateAccessToken(
-#             name=f"projects/-/serviceAccounts/{service_account}".format(
-#                 service_account=service_account
-#             ),
-#             body={
-#                 "lifetime": "600s",
-#                 "scope": [
-#                     "https://www.googleapis.com/auth/bigquery",
-#                     "https://www.googleapis.com/auth/bigquery.insertdata",
-#                     "https://www.googleapis.com/auth/cloud-platform",
-#                     "https://www.googleapis.com/auth/devstorage.full_control",
-#                     "https://www.googleapis.com/auth/cloudkms",
-#                     "https://www.googleapis.com/auth/logging.admin",
-#                     "https://www.googleapis.com/auth/monitoring",
-#                 ],
-#             },
-#         )
-#     )
-#     token = token.execute()["accessToken"]
-#     credentials = google.oauth2.credentials.Credentials(token)
-#     return credentials
+    :param service_account: the full name of the service account
+    :return: the credential to be used for authentication
+    """
+    iam = googleapiclient.discovery.build("iamcredentials", "v1")
+    token = (
+        iam.projects()
+        .serviceAccounts()
+        .generateAccessToken(
+            name=f"projects/-/serviceAccounts/{service_account}".format(
+                service_account=service_account
+            ),
+            body={
+                "lifetime": "600s",
+                "scope": [
+                    "https://www.googleapis.com/auth/bigquery",
+                    "https://www.googleapis.com/auth/bigquery.insertdata",
+                    "https://www.googleapis.com/auth/cloud-platform",
+                    "https://www.googleapis.com/auth/devstorage.full_control",
+                    "https://www.googleapis.com/auth/cloudkms",
+                    "https://www.googleapis.com/auth/logging.admin",
+                    "https://www.googleapis.com/auth/monitoring",
+                ],
+            },
+        )
+    )
+    token = token.execute()["accessToken"]
+    credentials = google.oauth2.credentials.Credentials(token)
+    return credentials
 
 
-# # "sa-dw-bqmaintenance-dev@pj-bu-dw-orch-dev.iam.gserviceaccount.com"
-# # "sa-dw-bqmaintenance-uat@pj-bu-dw-orch-uat.iam.gserviceaccount.com"
-# # "sa-dw-bqmaintenance-prod@pj-bu-dw-orch-prod.iam.gserviceaccount.com"
+# "sa-dw-bqmaintenance-dev@pj-bu-dw-orch-dev.iam.gserviceaccount.com"
+# "sa-dw-bqmaintenance-uat@pj-bu-dw-orch-uat.iam.gserviceaccount.com"
+# "sa-dw-bqmaintenance-prod@pj-bu-dw-orch-prod.iam.gserviceaccount.com"
 
-# env = "dev"  # prod uat dev
-# service_account = (
-#     f"sa-dw-bqmaintenance-{env}@pj-bu-dw-orch-{env}.iam.gserviceaccount.com"
-# )
+env = "dev"  # prod uat dev
+service_account = (
+    f"sa-dw-bqmaintenance-{env}@pj-bu-dw-orch-{env}.iam.gserviceaccount.com"
+)
 
 project = "pj-bu-dw-raw-dev"
 dataset = [
-        #    "P1_PCMD",
-           "H1_HEHE",
+           "P1_PCMD",
+        #    "P1_PACI"
+        #    "H1_HEHE",
         #    "H2_HEHE",
         #    "H3_HEHE",
         #    "H1_HKLC",
         #    "H2_HKLC",
         #    "H3_HKLC",
+        # "D1_DDEL"
            ]
 # table_id = "customers"
 
@@ -70,7 +75,7 @@ dataset = [
 def read_bq(project,dataset,table_id,client):
 
     query_job = client.query(
-        f"""select * from {project}.{dataset}.{table_id} limit 5000"""
+        f"""select * from {project}.{dataset}.{table_id} limit 50000"""
         ) 
     rows = query_job.result().to_dataframe()
     schema = client.get_table(f"{project}.{dataset}.{table_id}")
@@ -141,11 +146,11 @@ def create_table_insert_data_pg(data,schema,
         cursor = conn.cursor()
         
         #test schema change
-        # schema.update({'extra_col': 'TEXT'})
+        schema.update({'extra_col': 'TIMESTAMP'})
         # Create a PostgreSQL table if it doesn't exist
         
         create_table_query = f"""
-        DROP TABLE IF EXISTS {pg_table};
+        -- DROP TABLE IF EXISTS {pg_table};
         CREATE TABLE IF NOT EXISTS {pg_table} (
             {', '.join([f'"{col}" {type}' for col,type in schema.items()])}
         );
@@ -160,11 +165,11 @@ def create_table_insert_data_pg(data,schema,
             # Extract column names
             columns = ', '.join(data.columns).lower()
             #test schema change
-            # columns = columns+ ', extra_col'
-            # Convert row values to PostgreSQL format
+            columns = columns+ ', extra_col'
+            # Convert row values to PostgreSQL format 2023-07-07T08:25:00.052657+00:00
             values = [to_pg_format(x) for x in row.values]
             #test schema change
-            # values.append('schema changes test')
+            values.append(datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"))
             # Create the INSERT query with placeholders
             insert_query = f"""
             INSERT INTO {pg_table} ({columns}) 
