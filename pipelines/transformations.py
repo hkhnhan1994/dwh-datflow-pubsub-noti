@@ -6,7 +6,7 @@ import json
 from apache_beam.pvalue import AsDict
 from apache_beam.io.gcp.bigquery import WriteToBigQuery
 from apache_beam.transforms.window import FixedWindows
-from apache_beam.pvalue import TaggedOutput
+# from apache_beam.pvalue import TaggedOutput
 from .functions import (
     read_schema, 
     avro_schema_to_bq_schema, 
@@ -165,7 +165,6 @@ class write_to_BQ(beam.PTransform):
         # )
         # )
         return get_errors
-
 class write_error_to_alert(beam.PTransform):
     """Ptransform to write error to pubsub and Bigquery channels."""
     def __init__(self, config):
@@ -183,6 +182,7 @@ class write_error_to_alert(beam.PTransform):
         pubsub_topic = "projects/{}/topics/{}".format(self.config['chat_channel']['project'],self.config['chat_channel']['topics'])
         to_pubsub =(
             flatten_errors
+            | beam.Map(lambda x: x.pop('row'))
             | beam.Map(lambda x: str(x).encode('utf-8'))
             |beam.io.WriteToPubSub(pubsub_topic)
         )

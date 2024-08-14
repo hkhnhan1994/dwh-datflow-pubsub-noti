@@ -32,9 +32,9 @@ class merge_schema(beam.DoFn):
             # Identify items in _cur_schema that are not in _ex_schema   
             diff_list_but_no_update_schema = [item for item in _ex_schema if item['name'] not in dict_cur_schema]
             if bool(diff_list):
-                print(f'found different between current schema and exists schema:{diff_list}')
+                print(f'extra fields: {diff_list}')
             if bool(diff_list_but_no_update_schema):
-                print(f'found different between current schema and exists schema but no update:{diff_list_but_no_update_schema}')
+                print(f'deleted fields: {diff_list_but_no_update_schema}')
             is_new_table =False if len(_cur_schema) >0 else True
             yield (merge_schema[0],{'schema':merged_schema, 'is_schema_changes':bool(diff_list),'is_new_table':is_new_table })       
         except Exception as e:
@@ -123,16 +123,17 @@ class enrich_data(beam.DoFn):
     """Filled the missing columns when schema changes happened."""
     def process(self, data):
         try:
-            schema= data[1]['bq_schema'][0]
-            list_of_data= []
-            for dt in data[1]['data']:
-                fill_null = {}
-                for field in schema:
-                    field_name = field['name']
-                    fill_null[field_name] = dt.get(field_name, None)
-                list_of_data.append(fill_null)
-            data[1]['data'] = list_of_data
-            data[1]['bq_schema'] = schema
+            if len(data[1]['bq_schema']) >0:
+                schema= data[1]['bq_schema'][0]
+                list_of_data= []
+                for dt in data[1]['data']:
+                    fill_null = {}
+                    for field in schema:
+                        field_name = field['name']
+                        fill_null[field_name] = dt.get(field_name, None)
+                    list_of_data.append(fill_null)
+                data[1]['data'] = list_of_data
+                data[1]['bq_schema'] = schema
             yield (data[0],data[1])
         except Exception as e:
             result = dead_letter_message(
@@ -189,6 +190,7 @@ class avro_schema_to_bq_schema(beam.DoFn):
         "timestamp-millis": "TIMESTAMP",
         "timestamp-micros": "TIMESTAMP",
         "varchar": "STRING",
+        "number": "STRING"
         }
     def _should_ignore(self,field, parent):
         full_name = f"{parent}.{field}" if parent else field
@@ -313,10 +315,10 @@ class avro_schema_to_bq_schema(beam.DoFn):
             fields = tuple(
                 map(lambda f: self._convert_field(f), [key_field, value_field])
             )
-        elif "logicalType" in avro_type:
-            field_type = self.AVRO_TO_BIGQUERY_TYPES[avro_type["logicalType"]]
         elif avro_type["type"] in self.AVRO_TO_BIGQUERY_TYPES:
             field_type = self.AVRO_TO_BIGQUERY_TYPES[avro_type["type"]]
+        elif "logicalType" in avro_type:
+            field_type = self.AVRO_TO_BIGQUERY_TYPES[avro_type["logicalType"]]
         else:
             raise ReferenceError(f"Unknown complex type {avro_type['type']}")
         return field_type, fields, mode
