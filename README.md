@@ -21,3 +21,6 @@ gcloud dataflow jobs list
 ```
 gcloud dataflow jobs cancel JOB_ID
 ```
+pip install google-auth-httplib2
+
+pip install --upgrade 'apache-beam[gcp]'  

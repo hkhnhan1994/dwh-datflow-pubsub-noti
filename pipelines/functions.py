@@ -12,8 +12,8 @@ from avro.io import DatumReader
 from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.pvalue import TaggedOutput
 import hashlib
-import logging
-print = logging.info
+from config.develop import print_debug,print_error,print_info
+# print = logging.info
 class merge_schema(beam.DoFn):
     """Merge current schema into exists schema."""
     def process(self, merge_schema):
@@ -31,11 +31,12 @@ class merge_schema(beam.DoFn):
             diff_list = [item for item in _ex_schema if item['name'] not in dict_cur_schema]
             # Identify items in _cur_schema that are not in _ex_schema   
             diff_list_but_no_update_schema = [item for item in _ex_schema if item['name'] not in dict_cur_schema]
-            if bool(diff_list):
-                print(f'extra fields: {diff_list}')
-            if bool(diff_list_but_no_update_schema):
-                print(f'deleted fields: {diff_list_but_no_update_schema}')
             is_new_table =False if len(_cur_schema) >0 else True
+            if is_new_table is False:
+                if bool(diff_list):
+                    print_info(f'extra fields: {diff_list}')
+                if bool(diff_list_but_no_update_schema):
+                    print_info(f'deleted fields: {diff_list_but_no_update_schema}')
             yield (merge_schema[0],{'schema':merged_schema, 'is_schema_changes':bool(diff_list),'is_new_table':is_new_table })       
         except Exception as e:
                 result = dead_letter_message(
@@ -60,7 +61,7 @@ class read_bq_schema(beam.DoFn):
             yield (schema[0],{"bq_schema":bq_table, "avro_schema":schema[1]})
         except:
             try:
-                print("not found table {}".format(schema[0]))
+                print_info("not found table {}".format(schema[0]))
                 yield (schema[0],{"bq_schema":[], "avro_schema":schema[1]})
         
             except Exception as e:
@@ -96,7 +97,7 @@ class create_table(beam.DoFn):
                     create_disposition= 'CREATE_IF_NEEDED',
                     write_disposition= 'WRITE_EMPTY'
                 )
-                print(f'new table {data[0]} has been created')
+                print_info(f'new table {data[0]} has been created')
             else:
                 if data[1]['is_schema_changes']: 
                     # if schema changes detected
@@ -109,7 +110,7 @@ class create_table(beam.DoFn):
                     table.schema = schema
                     self.bq_table.gcp_bq_client.update_table(table, ['schema'])
 
-                    print('schema changes updated')
+                    print_info('schema changes updated')
             yield (data[0], data[1]['schema'])
         except Exception as e:
             result = dead_letter_message(
@@ -119,28 +120,27 @@ class create_table(beam.DoFn):
                 stage='create_table'
             )
             yield TaggedOutput('error',result)
-class enrich_data(beam.DoFn):
+class fill_null_data(beam.DoFn):
     """Filled the missing columns when schema changes happened."""
     def process(self, data):
         try:
-            if len(data[1]['bq_schema']) >0:
-                schema= data[1]['bq_schema'][0]
-                list_of_data= []
-                for dt in data[1]['data']:
-                    fill_null = {}
-                    for field in schema:
-                        field_name = field['name']
-                        fill_null[field_name] = dt.get(field_name, None)
-                    list_of_data.append(fill_null)
-                data[1]['data'] = list_of_data
-                data[1]['bq_schema'] = schema
-            yield (data[0],data[1])
+            if len(data['bq_schema']) >0:
+                schema= data['bq_schema']
+                # list_of_data= []
+                # for dt in data['data']:
+                fill_null = {}
+                for field in schema:
+                    field_name = field['name']
+                    fill_null[field_name] = data['data'].get(field_name, None)
+                    # list_of_data.append(fill_null)
+                data['data'] = fill_null
+            yield (data)
         except Exception as e:
             result = dead_letter_message(
                 destination= 'data_processing', 
                 row = data,
                 error_message = e,
-                stage='enrich_data'
+                stage='fill_null_data'
             )
             yield TaggedOutput('error',result)    
 class read_schema(beam.DoFn):
@@ -169,7 +169,7 @@ class avro_schema_to_bq_schema(beam.DoFn):
     """Process the schema read from GCS, pairs it into Bigquery format."""
     def __init__(self, ignore_fields):
         self.ignore_fields=ignore_fields
-    # print("schema process for table {}".format(data["name"]))
+    # print_debug("schema process for table {}".format(data["name"]))
     def setup(self):
         self.AVRO_TO_BIGQUERY_TYPES = {
         "record": "RECORD",
@@ -315,10 +315,10 @@ class avro_schema_to_bq_schema(beam.DoFn):
             fields = tuple(
                 map(lambda f: self._convert_field(f), [key_field, value_field])
             )
-        elif avro_type["type"] in self.AVRO_TO_BIGQUERY_TYPES:
-            field_type = self.AVRO_TO_BIGQUERY_TYPES[avro_type["type"]]
         elif "logicalType" in avro_type:
             field_type = self.AVRO_TO_BIGQUERY_TYPES[avro_type["logicalType"]]
+        elif avro_type["type"] in self.AVRO_TO_BIGQUERY_TYPES:
+            field_type = self.AVRO_TO_BIGQUERY_TYPES[avro_type["type"]]
         else:
             raise ReferenceError(f"Unknown complex type {avro_type['type']}")
         return field_type, fields, mode
@@ -394,7 +394,7 @@ class avro_processing(beam.DoFn):
                     flattened_data[f"source_metadata_{sub_key}"] = self._convert_data(sub_value)
             else:
                 flattened_data[f"ingestion_meta_data_{key}"] = self._convert_data(value)
-        # print("processing data for table {}".format(flattened_data["source_metadata_table"]))
+        # print_debug("processing data for table {}".format(flattened_data["source_metadata_table"]))
         return flattened_data
         
     def calculate_hash_payload(self, data):
@@ -417,6 +417,7 @@ class avro_processing(beam.DoFn):
             _data = self.calculate_hash_payload(_data)
             _data = self.flatten_data(_data)
             yield self.mapping_table_name(_data)
+            # yield _data
         except Exception as e:
             result = dead_letter_message(
                 destination= 'read_avro_content', 

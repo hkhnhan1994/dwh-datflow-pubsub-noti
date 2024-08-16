@@ -160,8 +160,7 @@ def create_table_insert_data_pg(data,schema,
         conn.commit()
 
         # Insert data into PostgreSQL
-        counter = 0
-        for index, row in tqdm(data.iterrows(), total=data.shape[0], desc="Inserting rows"):
+        for index, row in tqdm(data.iterrows(), total=data.shape[0], desc=f"table {pg_table}"):
             # Extract column names
             columns = ', '.join(data.columns).lower()
             #test schema change
@@ -180,13 +179,11 @@ def create_table_insert_data_pg(data,schema,
             # print(insert_query)
             try:
                 cursor.execute(insert_query, tuple(values))
-                counter = counter+1
             except Exception as e:
                 print(e)
                 print(values)
                 conn.rollback()
                 continue
-        print(f"inserted {counter} into table {pg_table}")
         # Commit the transaction and close the connection
         conn.commit()
     except Exception as e:
