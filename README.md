@@ -16,6 +16,7 @@ This document provides an overview of the data processing pipeline from Datastre
 Install the required Python packages by executing the following commands:
 
 ```bash
+pip install -r requirements.txt 
 pip install google-auth-httplib2
 pip install --upgrade 'apache-beam[gcp]'
 ```
@@ -44,6 +45,10 @@ gcloud storage buckets notifications create gs://test_bucket_upvn --topic=projec
 To run the pipeline locally or on Dataflow:
 
 1. Update the `runner` setting in the configuration file to specify your desired execution environment (e.g., local or Dataflow).
+- config/[environment].py -> beam_config-> runner
+- Local runner: DirectRunner
+- Dataflow runner: DataflowRunner
+2. Config setup.py if using dataflow runner
 2. Execute the pipeline script:
 
     ```bash
