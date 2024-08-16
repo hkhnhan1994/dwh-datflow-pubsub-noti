@@ -5,20 +5,22 @@ import apache_beam as beam
 import json
 from apache_beam.pvalue import AsDict
 from apache_beam.io.gcp.bigquery import WriteToBigQuery
-from apache_beam.transforms.window import FixedWindows
-# from apache_beam.pvalue import TaggedOutput
+from apache_beam.transforms.window import FixedWindows, GlobalWindows
+# from apache_beam.transforms import trigger 
+from apache_beam.pvalue import TaggedOutput
 from .functions import (
     read_schema, 
     avro_schema_to_bq_schema, 
     read_bq_schema, 
     merge_schema, 
     create_table, 
-    avro_processing
+    avro_processing,
+    fill_null_data,
+    dead_letter_message
 )
 import datetime
 
-import logging
-print = logging.info
+from config.develop import print_debug,print_error,print_info
 class read_path_from_pubsub(beam.PTransform):
     """Ptransform to read data from Pubsub, could add multiple topics and subscriptions.
        The returned values is a file's link path on GCS.
@@ -34,7 +36,7 @@ class read_path_from_pubsub(beam.PTransform):
                 if check_format.endswith(f):
                     return element
         def path_former(element):
-            # print("get: gs://"+element['bucket']+"/"+element['name'])
+            # print_debug("get: gs://"+element['bucket']+"/"+element['name'])
             return "gs://"+element['bucket']+"/"+element['name']
 
         subs = [beam.io.PubSubSourceDescriptor("projects/{}/subscriptions/{}".format(self.project,sub)) for sub in self.subscription]
@@ -62,8 +64,6 @@ class schema_processing(beam.PTransform):
         to_bq_schema =(
             _schema.schema
             |"schema processing" >> beam.ParDo(avro_schema_to_bq_schema(self.ignore_fields)).with_outputs('error', main='schema')
-            # |beam.ParDo(merge_schema())
-            # |beam.ParDo(create_table(),self.project, self.dataset)
         )
         read_from_bq = (
             to_bq_schema.schema
@@ -77,16 +77,18 @@ class schema_processing(beam.PTransform):
             merge_exists_to_current_schema.schema
             |beam.ParDo(create_table(),self.project, self.dataset).with_outputs('error', main='schema')
         )
-        _ = (
-            (_schema.error, 
+        error = (
+            (_schema.error,
              to_bq_schema.error, 
              read_from_bq.error, 
              merge_exists_to_current_schema.error,
              create_table_if_needed.error,
              )
-            | "write schema process error to channels" >> write_error_to_alert(self.error_handler)
+            # |"error w1" >> beam.WindowInto(FixedWindows(5))
+            # | "write schema process error to channels" >> write_error_to_alert(self.error_handler)
+            |beam.Flatten()
         )
-        return create_table_if_needed.schema
+        return create_table_if_needed.schema, error
 class read_avro_content(beam.PTransform):
     """Ptransform to process the avro's content read from GCS."""
     def __init__(self,ignore_fields,error_handler):
@@ -99,11 +101,11 @@ class read_avro_content(beam.PTransform):
             | beam.io.ReadAllFromAvro(with_filename =True)
             | "avro processing" >> beam.ParDo(avro_processing(), self.ignore_fields).with_outputs('error', main='data')
         )
-        _ = (
-            (data.error,)
-            | "write data process error to channels" >> write_error_to_alert(self.error_handler)
-        )
-        return data.data
+        # _ = (
+        #     (data.error,)
+        #     | "write data process error to channels" >> write_error_to_alert(self.error_handler)
+        # )
+        return data
 class write_to_BQ(beam.PTransform):
     """Ptransform to write the processed data to Bigquery."""
     def __init__(self,project ,dataset):
@@ -113,11 +115,10 @@ class write_to_BQ(beam.PTransform):
     def expand(self, pcoll):
         class get_data(beam.DoFn):
             def process(self,data):
-                for dt in data[1]['data']:
-                    yield dt
+                yield data['data']
         class map_schema_to_table_name(beam.DoFn):
             def process(self,data,project,dataset):
-                yield ("{}:{}.{}".format(project,dataset,data[0]), data[1]['bq_schema'])
+                yield ("{}:{}.{}".format(project,dataset,data['data']['ingestion_meta_data_object']), {'fields':data['bq_schema']})
         data = (pcoll
                 |beam.ParDo(get_data())
                 |"w1" >> beam.WindowInto(FixedWindows(5))
@@ -126,7 +127,7 @@ class write_to_BQ(beam.PTransform):
         schema =(pcoll
                  |beam.ParDo(map_schema_to_table_name(),self.project, self.dataset)
                  |"w2" >> beam.WindowInto(FixedWindows(5))
-                #  | beam.Map(print)
+                #  | beam.Map(print_debug)
                  )
         to_BQ =(
             data                  
@@ -135,7 +136,7 @@ class write_to_BQ(beam.PTransform):
                 schema= lambda table ,bq_schema:bq_schema[table],
                 schema_side_inputs = (AsDict(schema),),
                 write_disposition='WRITE_APPEND',
-                create_disposition='CREATE_NEVER',
+                create_disposition='CREATE_IF_NEEDED',
                 insert_retry_strategy='RETRY_NEVER',
                 temp_file_format='AVRO',
                 method='STREAMING_INSERTS',
@@ -143,31 +144,48 @@ class write_to_BQ(beam.PTransform):
                 # kms_key,
             )
         )
-        error_schema = {'fields': [
-                {'name': 'destination', 'type': 'STRING', 'mode': 'NULLABLE'},
-                {'name': 'row', 'type': 'STRING', 'mode': 'NULLABLE'},
-                {'name': 'error_message', 'type': 'STRING', 'mode': 'NULLABLE'},
-                {'name': 'timestamp', 'type': 'TIMESTAMP', 'mode': 'NULLABLE'}
-                ]}
         get_errors = (to_BQ.failed_rows_with_errors
-        | 'Get Errors' >> beam.Map(lambda e: {
+        | 'Get Errors' >> beam.Map(lambda e: ('error',{
                 "destination": e[0],
                 "row": json.dumps(e[1],indent=4,default=str),
                 "error_message": e[2][0]['message'],
                 "stage": "write to BQ",
                 "timestamp":(datetime.datetime.now(datetime.timezone.utc))
-                })
+                }))
         )
-        # | 'Write Errors' >> WriteToBigQuery(
-        #         method=WriteToBigQuery.Method.STREAMING_INSERTS,
-        #         table="{}:{}.error_log_table".format(self.project,self.dataset),
-        #         schema=error_schema,
-        # )
-        # )
         return get_errors
+class map_new_data_to_bq_schema(beam.PTransform):
+    def expand(self, pcoll):
+        class flatten(beam.DoFn):
+            def process(self,data):
+                try:
+                    for dt in data[1]['data']:
+                        yield ({'data':dt,'bq_schema':data[1]['bq_schema'][0]} )
+                except Exception as e:
+                    result = dead_letter_message(
+                        destination= 'map_new_data_to_bq_schema', 
+                        row = data,
+                        error_message = e,
+                        stage='flatten'
+                    )
+                    print_debug(e)
+                    yield TaggedOutput('error',result)
+                    
+        get_data = (pcoll|beam.ParDo(flatten()).with_outputs('error', main='data'))
+        fill_null = (
+            get_data.data
+            |beam.ParDo(fill_null_data()).with_outputs('error', main='data')
+        )
+        error = (
+            (get_data.error,fill_null.error)
+            # |"error w2" >> beam.WindowInto(FixedWindows(5))
+            |beam.Flatten()
+        )
+        return fill_null.data, error
+        
 class write_error_to_alert(beam.PTransform):
     """Ptransform to write error to pubsub and Bigquery channels."""
-    def __init__(self, config):
+    def __init__(self, config): 
         self.config = config
     def expand(self, pcoll):
         def convert_to_string(data):
@@ -177,7 +195,8 @@ class write_error_to_alert(beam.PTransform):
         flatten_errors = ( pcoll 
                           |"flatten error" >> beam.Flatten()
                           |beam.Map(lambda x: x[-1])
-                        #   |beam.Map(print)
+                        #   |beam.FlatMapTuple(lambda x: x)
+                        #   |beam.Map(print_debug)
                           )
         pubsub_topic = "projects/{}/topics/{}".format(self.config['chat_channel']['project'],self.config['chat_channel']['topics'])
         to_pubsub =(

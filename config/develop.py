@@ -1,7 +1,7 @@
 """Configuration of the dataflow."""
 
 beam_config={
-    "job_name": "cmd-stream1",
+    "job_name": "cmd-stream",
     "staging_location": "gs://test_bucket_upvn/datastream-postgres/Beam-pubsub/staging",
     "temp_location": "gs://test_bucket_upvn/datastream-postgres/Beam-pubsub/temp",
     "project": "pj-bu-dw-data-sbx",
@@ -52,4 +52,15 @@ dead_letter = {
         "project": "pj-bu-dw-data-sbx",
     },
         }
+LOCAL_LOG = False
 
+if LOCAL_LOG:
+    print_info = print
+    print_debug = print
+    print_error = print
+else:
+    import logging
+    print_info = logging.info
+    print_debug = logging.debug
+    print_error = logging.error
+    
