@@ -213,4 +213,4 @@ class write_error_to_alert(beam.PTransform):
                 table="{}:{}.{}".format(self.config['bq_channel']['project'],self.config['bq_channel']['dataset'],self.config['bq_channel']['table_id']),
                 schema=self.config['bq_channel']['schema'],
         )
-        ) 
+        )
