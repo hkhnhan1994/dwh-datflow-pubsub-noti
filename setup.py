@@ -16,4 +16,7 @@ setup(
     description='dataflow',
     packages = find_packages(),
     include_package_data=True,
+    author="My name",
+    author_email="my@email.com",
+    url="an url example"
 )
