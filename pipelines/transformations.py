@@ -136,7 +136,7 @@ class write_to_BQ(beam.PTransform):
                 schema= lambda table ,bq_schema:bq_schema[table],
                 schema_side_inputs = (AsDict(schema),),
                 write_disposition='WRITE_APPEND',
-                create_disposition='CREATE_IF_NEEDED',
+                create_disposition='CREATE_NEVER',  
                 insert_retry_strategy='RETRY_NEVER',
                 temp_file_format='AVRO',
                 method='STREAMING_INSERTS',
