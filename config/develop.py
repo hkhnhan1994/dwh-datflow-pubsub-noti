@@ -30,10 +30,11 @@ cdc_ignore_fields = [
 bigquery_datalake ={
     "project": "pj-bu-dw-data-sbx",
     "region": "europe-west1",
-    "dataset": {
-        "cmd_test":"lake_view_cmd",
-        "paci_test":"lake_view_paci"
-        }
+    "dataset": "lake_view_cmd"
+    # "dataset": {
+    #     "cmd_test":"lake_view_cmd",
+    #     "paci_test":"lake_view_paci"
+    #     }
 }
 dead_letter = {
 "bq_channel":
