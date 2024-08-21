@@ -25,9 +25,8 @@ class read_path_from_pubsub(beam.PTransform):
     """Ptransform to read data from Pubsub, could add multiple topics and subscriptions.
        The returned values is a file's link path on GCS.
     """
-    def __init__(self, project: str, subscription: list, file_format = ['avro']):
-        self.project=project
-        self.subscription =subscription
+    def __init__(self, pubsub_config: dict, file_format = ['avro']):
+        self.pubsub_config=pubsub_config
         self.file_format = file_format
     def expand(self, pcoll):
         def filter(element, file_format):
@@ -38,8 +37,7 @@ class read_path_from_pubsub(beam.PTransform):
         def path_former(element):
             # print_debug("get: gs://"+element['bucket']+"/"+element['name'])
             return "gs://"+element['bucket']+"/"+element['name']
-
-        subs = [beam.io.PubSubSourceDescriptor("projects/{}/subscriptions/{}".format(self.project,sub)) for sub in self.subscription]
+        subs = [beam.io.PubSubSourceDescriptor("projects/{}/subscriptions/{}".format(self.pubsub_config.get('project'),sub)) for sub in self.pubsub_config.get('subscription')]
         get_message_contains_file_url =(
                 pcoll
                 | "read gcs noti" >> beam.io.MultipleReadFromPubSub(subs).with_output_types(bytes) 
@@ -51,12 +49,13 @@ class read_path_from_pubsub(beam.PTransform):
         return get_message_contains_file_url
 class schema_processing(beam.PTransform):
     """Ptransform to process the schema read from GCS. including the schema changes handler."""
-    def __init__(self,ignore_fields,project,dataset,error_handler):
+    def __init__(self,ignore_fields,bq_pars):
             self.ignore_fields =ignore_fields
-            self.project = project
-            self.dataset = dataset
-            self.error_handler=error_handler
+            self.bq_pars = bq_pars
+
     def expand(self, pcoll):
+        project = self.bq_pars.get('project')
+        dataset = self.bq_pars.get('dataset')
         _schema = ( # data must be in Arvo format
             pcoll
             |"read schema from arvo file" >> beam.ParDo(read_schema()).with_outputs('error', main='schema')
@@ -67,7 +66,7 @@ class schema_processing(beam.PTransform):
         )
         read_from_bq = (
             to_bq_schema.schema
-            |beam.ParDo(read_bq_schema(),self.project,self.dataset).with_outputs('error', main='schema')
+            |beam.ParDo(read_bq_schema(),project,dataset).with_outputs('error', main='schema')
         )
         merge_exists_to_current_schema =(
             read_from_bq.schema
@@ -75,7 +74,7 @@ class schema_processing(beam.PTransform):
         )
         create_table_if_needed =(
             merge_exists_to_current_schema.schema
-            |beam.ParDo(create_table(),self.project, self.dataset).with_outputs('error', main='schema')
+            |beam.ParDo(create_table(),project, dataset).with_outputs('error', main='schema')
         )
         error = (
             (_schema.error,
@@ -91,9 +90,8 @@ class schema_processing(beam.PTransform):
         return create_table_if_needed.schema, error
 class read_avro_content(beam.PTransform):
     """Ptransform to process the avro's content read from GCS."""
-    def __init__(self,ignore_fields,error_handler):
+    def __init__(self,ignore_fields):
             self.ignore_fields =ignore_fields
-            self.error_handler =error_handler
     def expand(self, pcoll):
         # if avro format:
         data =  ( # data must be in Arvo format
@@ -101,18 +99,15 @@ class read_avro_content(beam.PTransform):
             | beam.io.ReadAllFromAvro(with_filename =True)
             | "avro processing" >> beam.ParDo(avro_processing(), self.ignore_fields).with_outputs('error', main='data')
         )
-        # _ = (
-        #     (data.error,)
-        #     | "write data process error to channels" >> write_error_to_alert(self.error_handler)
-        # )
         return data
 class write_to_BQ(beam.PTransform):
     """Ptransform to write the processed data to Bigquery."""
-    def __init__(self,project ,dataset):
+    def __init__(self,bq_pars):
         super().__init__()
-        self.project=project
-        self.dataset=dataset
+        self.bq_pars=bq_pars
     def expand(self, pcoll):
+        project = self.bq_pars.get('project')
+        dataset = self.bq_pars.get('dataset')
         class get_data(beam.DoFn):
             def process(self,data):
                 yield data['data']
@@ -125,14 +120,14 @@ class write_to_BQ(beam.PTransform):
                 
                 )
         schema =(pcoll
-                 |beam.ParDo(map_schema_to_table_name(),self.project, self.dataset)
+                 |beam.ParDo(map_schema_to_table_name(),project, dataset)
                  |"w2" >> beam.WindowInto(FixedWindows(5))
                 #  | beam.Map(print_debug)
                  )
         to_BQ =(
             data                  
             |WriteToBigQuery(
-                table=lambda x: "{}:{}.{}".format(self.project,self.dataset,x['ingestion_meta_data_object']),
+                table=lambda x: "{}:{}.{}".format(project,dataset,x['ingestion_meta_data_object']),
                 schema= lambda table ,bq_schema:bq_schema[table],
                 schema_side_inputs = (AsDict(schema),),
                 write_disposition='WRITE_APPEND',
