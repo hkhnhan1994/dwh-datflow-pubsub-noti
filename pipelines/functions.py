@@ -52,13 +52,17 @@ class read_bq_schema(beam.DoFn):
         self.client = bigquery.Client()
     def process(self,schema, project, dataset):
         try:
-            dataset_ref = self.client.dataset(dataset_id=dataset, project=project)
+            if isinstance(dataset,dict):
+                path = schema['path'].removeprefix('gs://')
+                dataset_id = next((dataset.get(sub_folder) for sub_folder in path.split('/') if sub_folder in dataset), "default_dataset")
+            else: dataset_id =dataset
+            dataset_ref = self.client.dataset(dataset_id=dataset_id, project=project)
             table_ref = dataset_ref.table(schema[0])
             table = self.client.get_table(table_ref)
             f = io.StringIO("")
             self.client.schema_to_json(table.schema, f)
             bq_table = json.loads(f.getvalue())
-            yield (schema[0],{"bq_schema":bq_table, "avro_schema":schema[1]})
+            yield ({"bq_schema":bq_table, "avro_schema":schema})
         except:
             try:
                 print_info("not found table {}".format(schema[0]))
@@ -155,6 +159,7 @@ class read_schema(beam.DoFn):
             with io.BytesIO(avro_bytes) as avro_file:
                 reader = DataFileReader(avro_file, DatumReader()).meta
                 parsed = json.loads(reader['avro.schema'].decode())
+                parsed['path'] = str(element)
                 avro_file.close()
                 yield parsed
         except Exception as e:
@@ -340,7 +345,7 @@ class avro_schema_to_bq_schema(beam.DoFn):
             "mode": mode,
         }
     def key_value_mapping(self,data):
-        return (data['name'], data['fields'])
+        return (data['name'], data['fields'],data['path'])
     def convert_bq_schema(self,data):
         # Function to convert JSON schema to BigQuery schema
         data["fields"] = list(map(lambda f: self._convert_field(f), data["fields"]))
@@ -349,8 +354,8 @@ class avro_schema_to_bq_schema(beam.DoFn):
         try:
             _data = self.clean_unused_schema_fields(data)
             _data = self.flatten_schema(_data)
-            _data = self.convert_bq_schema(_data)
-            yield(self.key_value_mapping(_data))
+            yield self.convert_bq_schema(_data)
+            # yield(self.key_value_mapping(_data))
         except Exception as e:
             result = dead_letter_message(
                 destination= 'schema_processing', 

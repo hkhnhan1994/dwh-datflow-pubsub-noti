@@ -13,12 +13,12 @@ def run(beam_options):
     with beam.Pipeline(options=beam_options) as p:
         read_file_path = (
             p
-            | read_path_from_pubsub(project=pubsub_config.get('project'),subscription=pubsub_config.get('subscription'))
+            | read_path_from_pubsub(pubsub_config=pubsub_config)
             # |beam.Map(print_debug)
         )
         data = (
             read_file_path
-            |read_avro_content(ignore_fields = cdc_ignore_fields, error_handler = dead_letter)
+            |read_avro_content(ignore_fields = cdc_ignore_fields)
             # |beam.Map(print_debug)
         )
         data_windows = (
@@ -31,7 +31,7 @@ def run(beam_options):
         )
         schema, schema_error = (
             read_file_path
-            |schema_processing(cdc_ignore_fields,project=bigquery_datalake.get('project'),dataset=bigquery_datalake.get('dataset'),error_handler = dead_letter )
+            |schema_processing(cdc_ignore_fields,bq_pars=bigquery_datalake)
             # |beam.Map(print_debug)
             )
         schema_windows =(
@@ -55,7 +55,7 @@ def run(beam_options):
         )
         to_BQ = (
             data_processing
-            |write_to_BQ(project=bigquery_datalake.get('project'), dataset =bigquery_datalake.get('dataset'))
+            |write_to_BQ(bq_pars=bigquery_datalake)
         )
         errors =(
             (to_BQ,data_processing_error_windows,schema_error_windows,data_error_windows )
