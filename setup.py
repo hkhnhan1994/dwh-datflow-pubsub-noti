@@ -11,6 +11,7 @@ setup(
         # "pip install 'apache-beam[gcp]'"
         "pyfiglet",
         "avro==1.11.3",
+        "google-cloud-storage==2.18.2"  
 
     ],
     description='dataflow',
