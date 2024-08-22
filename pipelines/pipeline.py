@@ -36,7 +36,7 @@ def run(beam_options):
             )
         schema_windows =(
             schema
-            |beam.Reshuffle()
+            # |beam.Reshuffle()
             |"bound windows schema" >> beam.WindowInto(FixedWindows(5))
             # |beam.Map(print_debug)
         )
@@ -55,7 +55,8 @@ def run(beam_options):
         )
         to_BQ = (
             data_processing
-            |write_to_BQ(bq_pars=bigquery_datalake)
+            |beam.Reshuffle()
+            |write_to_BQ()
         )
         errors =(
             (to_BQ,data_processing_error_windows,schema_error_windows,data_error_windows )

@@ -15,13 +15,40 @@ import hashlib
 from config.develop import print_debug,print_error,print_info
 # print = logging.info
 class merge_schema(beam.DoFn):
-    """Merge current schema into exists schema."""
+    """Merge current schema into exists schema.
+    
+    Return:
+    
+        Result.data -> {
+            "schema": # Merged Schema
+                [
+                    {
+                        "name": str,
+                        "type": str,
+                        "mode": str,
+                    },
+                ],
+            "is_schema_changes": Bool,
+            "is_new_table":Bool,
+            "datalake_maping":
+            {
+                "project": str,
+                "dataset" : str,
+                "table": str,
+                "bq_pars": {args},
+            }
+        }
+        Result.error -> dead_letter_message
+
+    """
     def process(self, merge_schema):
         try:
             # Convert lists to dictionaries with "name" as the key
-            _cur_schema = merge_schema[1]['bq_schema']
-            _ex_schema = merge_schema[1]['avro_schema']
-            dict_cur_schema = {item['name']: item for item in _cur_schema}
+            _cur_schema = merge_schema['bq_schema']
+            _ex_schema = merge_schema['avro_schema']['fields']
+            # print_debug(_cur_schema)
+            # print_debug(_ex_schema)
+            dict_cur_schema = {item['name']: item for item in _cur_schema} if len(_cur_schema)>0 else {}
             dict_ex_schema = {item['name']: item for item in _ex_schema}
             # Merge dictionaries
             merged_dic_schema = {**dict_cur_schema, **dict_ex_schema}
@@ -31,44 +58,90 @@ class merge_schema(beam.DoFn):
             diff_list = [item for item in _ex_schema if item['name'] not in dict_cur_schema]
             # Identify items in _cur_schema that are not in _ex_schema   
             diff_list_but_no_update_schema = [item for item in _ex_schema if item['name'] not in dict_cur_schema]
-            is_new_table =False if len(_cur_schema) >0 else True
+            is_new_table = False if len(_cur_schema) >0 else True
             if is_new_table is False:
                 if bool(diff_list):
                     print_info(f'extra fields: {diff_list}')
+                else: print_debug('schema does not change while checking new fields')
                 if bool(diff_list_but_no_update_schema):
                     print_info(f'deleted fields: {diff_list_but_no_update_schema}')
-            yield (merge_schema[0],{'schema':merged_schema, 'is_schema_changes':bool(diff_list),'is_new_table':is_new_table })       
+                else:  print_debug('schema does not change while checking removed fields')
+            yield ({'schema':merged_schema, 'is_schema_changes':bool(diff_list),'is_new_table':is_new_table,'datalake_maping': merge_schema['datalake_maping']})      
         except Exception as e:
-                result = dead_letter_message(
-                    destination= 'schema_processing', 
-                    row = merge_schema,
-                    error_message = e,
-                    stage='merge_schema'
-                )
-                yield TaggedOutput('error',result)
+            print_error('data {} --> get error {}'.format(merge_schema,e))
+            result = dead_letter_message(
+                destination= 'schema_processing', 
+                row = merge_schema,
+                error_message = e,
+                stage='merge_schema'
+            )
+            yield TaggedOutput('error',result)
 class read_bq_schema(beam.DoFn):
-    """Read table schema from Bigquery."""
+    """Read table schema from Bigquery.
+
+    Return: Bigquery schema structure read from Bigquery table:
+    
+        Result.data -> {
+            "bq_schema": 
+                [
+                    {
+                        "name": str,
+                        "type": str,
+                        "mode": str,
+                    },
+                ]
+            "avro_schema":
+            {
+                "name": str,
+                "type": str,
+                "fields: [ # BQ schema format( converted avro schema)
+                    {
+                        "name": str,
+                        "type": str,
+                        "mode": str,
+                    },
+                    
+                ],
+                "path": str,
+            },
+            "datalake_maping":
+            {
+                "project": str,
+                "dataset" : str,
+                "table": str,
+                "bq_pars": {args},
+            }
+        }
+        Result.error -> dead_letter_message
+
+    """
     def setup(self):
         self.client = bigquery.Client()
-    def process(self,schema, project, dataset):
+    def process(self,schema, bq_pars):
         try:
-            if isinstance(dataset,dict):
-                path = schema['path'].removeprefix('gs://')
-                dataset_id = next((dataset.get(sub_folder) for sub_folder in path.split('/') if sub_folder in dataset), "default_dataset")
-            else: dataset_id =dataset
-            dataset_ref = self.client.dataset(dataset_id=dataset_id, project=project)
-            table_ref = dataset_ref.table(schema[0])
+            dataset_id  = get_data_maping(schema['path'],bq_pars.get('default_dataset'),bq_pars.get('dataset'))
+            print_debug("{} store to {}".format(schema['path'],dataset_id))
+            datalake_maping ={
+                "project": bq_pars.get('project'),
+                "dataset" : dataset_id,
+                "table": schema['name'],
+                "bq_pars":bq_pars
+            }
+            dataset_ref = self.client.dataset(dataset_id=datalake_maping['dataset'], project=datalake_maping['project'])
+            table_ref = dataset_ref.table(datalake_maping['table'])
             table = self.client.get_table(table_ref)
             f = io.StringIO("")
             self.client.schema_to_json(table.schema, f)
             bq_table = json.loads(f.getvalue())
-            yield ({"bq_schema":bq_table, "avro_schema":schema})
-        except:
+            
+            yield ({"bq_schema":bq_table, "avro_schema":schema, "datalake_maping":datalake_maping})
+        except Exception as e:
             try:
-                print_info("not found table {}".format(schema[0]))
-                yield (schema[0],{"bq_schema":[], "avro_schema":schema[1]})
-        
+                print_error(e)
+                print_info("not found table {}.{}.{}".format(bq_pars.get('project'),bq_pars.get('dataset'),schema['name']))
+                yield ({"bq_schema":[], "avro_schema":schema, "datalake_maping":datalake_maping})
             except Exception as e:
+                print_error(e)
                 result = dead_letter_message(
                     destination= 'schema_processing', 
                     row = schema,
@@ -77,7 +150,32 @@ class read_bq_schema(beam.DoFn):
                 )
                 yield TaggedOutput('error',result)
 class create_table(beam.DoFn):
-    """Create Bigquery table if not exists."""
+    """Create Bigquery table if not exists.
+    
+    Return:
+    
+        Result.data -> {
+            "schema": # Merged Schema
+                [
+                    {
+                        "name": str,
+                        "type": str,
+                        "mode": str,
+                    },
+                ],
+            "is_schema_changes": Bool,
+            "is_new_table":Bool,
+            "datalake_maping":
+            {
+                "project": str,
+                "dataset" : str,
+                "table": str,
+                "bq_pars": {args},
+            }
+        }
+        Result.error -> dead_letter_message
+
+    """
     def setup(self):
         self.bq_table = BigQueryWrapper()
     def _parse_schema_field(self,field):
@@ -88,38 +186,44 @@ class create_table(beam.DoFn):
             fields = [self._parse_schema_field(x) for x in field['fields']] if 'fields' in field else '',
             description= field['description'] if 'description' in field else '',
             )
-    def process(self,data,project,dataset):
+    def process(self,schema):
         try:
-            if data[1]['is_new_table']: 
+            if schema['is_new_table']: 
                 # if new table detected
-                schema = get_bq_tableschema({'fields':data[1]['schema']})
+                schema = get_bq_tableschema({'fields':schema['schema']})
+                self.bq_table.get_or_create_dataset(
+                    project_id = schema['datalake_maping']['project'],
+                    dataset_id = schema['datalake_maping']['dataset'],
+                    location = schema['datalake_maping']['bq_pars']['region']
+                    )
                 self.bq_table.get_or_create_table(
-                    project_id = project,
-                    dataset_id = dataset,
-                    table_id = data[0],
+                    project_id = schema['datalake_maping']['project'],
+                    dataset_id = schema['datalake_maping']['dataset'],
+                    table_id = schema['datalake_maping']['table'],
                     schema = schema,
                     create_disposition= 'CREATE_IF_NEEDED',
                     write_disposition= 'WRITE_EMPTY'
                 )
-                print_info(f'new table {data[0]} has been created')
+                print_info(f'new table {schema[0]} has been created')
             else:
-                if data[1]['is_schema_changes']: 
+                if schema['is_schema_changes']: 
                     # if schema changes detected
                     # print('schema changes detected')
-                    schema = [self._parse_schema_field(f) for f in data[1]['schema']]
-                    # schema = get_bq_tableschema({'fields':data[1]['schema']})
+                    new_schema = [self._parse_schema_field(f) for f in schema['schema']]
+                    # schema = get_bq_tableschema({'fields':schema['schema']})
                     table = self.bq_table.gcp_bq_client.get_table(
-                        f'{project}.{dataset}.{data[0]}'
+                        '{}.{}.{}'.format(schema['datalake_maping']['project'],schema['datalake_maping']['dataset'],schema['datalake_maping']['table'])
                     )
-                    table.schema = schema
+                    table.schema = new_schema
                     self.bq_table.gcp_bq_client.update_table(table, ['schema'])
-
                     print_info('schema changes updated')
-            yield (data[0], data[1]['schema'])
+            # yield (schema['name'], schema['schema'])
+            yield schema
         except Exception as e:
+            print_error(e)
             result = dead_letter_message(
                 destination= 'schema_processing', 
-                row = data,
+                row = schema,
                 error_message = e,
                 stage='create_table'
             )
@@ -128,8 +232,8 @@ class fill_null_data(beam.DoFn):
     """Filled the missing columns when schema changes happened."""
     def process(self, data):
         try:
-            if len(data['bq_schema']) >0:
-                schema= data['bq_schema']
+            if len(data['bq_schema']['schema']) >0:
+                schema= data['bq_schema']['schema']
                 # list_of_data= []
                 # for dt in data['data']:
                 fill_null = {}
@@ -140,6 +244,7 @@ class fill_null_data(beam.DoFn):
                 data['data'] = fill_null
             yield (data)
         except Exception as e:
+            print_error(e)
             result = dead_letter_message(
                 destination= 'data_processing', 
                 row = data,
@@ -148,7 +253,19 @@ class fill_null_data(beam.DoFn):
             )
             yield TaggedOutput('error',result)    
 class read_schema(beam.DoFn):
-    """Read schema from avro file stored in GCS."""
+    """Read schema from avro file stored in GCS.
+    
+        Return: Arvo schema structure: 
+
+           Result.data -> {
+                "name": str,
+                "type": str,
+                "fields: [],
+                "path": str
+            }
+            Result.error -> dead_letter_message
+
+    """
     def setup(self):
         self.fs = GCSFileSystem(PipelineOptions())
     def process(self, element):
@@ -163,6 +280,7 @@ class read_schema(beam.DoFn):
                 avro_file.close()
                 yield parsed
         except Exception as e:
+            print_error(e)
             result = dead_letter_message(
                 destination= 'schema_processing',
                 row = element,
@@ -171,7 +289,26 @@ class read_schema(beam.DoFn):
             )
             yield TaggedOutput('error',result)
 class avro_schema_to_bq_schema(beam.DoFn):
-    """Process the schema read from GCS, pairs it into Bigquery format."""
+    """Process the schema read from GCS, pairs it into Bigquery format.
+
+        Return: Bigquery schema structure: 
+
+           Result.data -> {
+                "name": str,
+                "type": str,
+                "fields: [
+                    {
+                        "name": str,
+                        "type": str,
+                        "mode": str,
+                    },
+                    ...
+                ],
+                "path": str
+            }
+            Result.error -> dead_letter_message
+
+    """
     def __init__(self, ignore_fields):
         self.ignore_fields=ignore_fields
     # print_debug("schema process for table {}".format(data["name"]))
@@ -357,6 +494,7 @@ class avro_schema_to_bq_schema(beam.DoFn):
             yield self.convert_bq_schema(_data)
             # yield(self.key_value_mapping(_data))
         except Exception as e:
+            print_error(e)
             result = dead_letter_message(
                 destination= 'schema_processing', 
                 row = data,
@@ -365,7 +503,14 @@ class avro_schema_to_bq_schema(beam.DoFn):
             )
             yield TaggedOutput('error',result)
 class avro_processing(beam.DoFn):
-    """Process the avro content, including cleanup flatten data."""
+    """
+        Process the avro content, including cleanup flatten data.
+
+        Return:
+
+            Result.data -> ("table_name", "data")
+            Result.error -> dead_letter_message
+    """
     def _recursive_remove(self,data, keys):
         if len(keys) == 1:
             data.pop(keys[0], None)
@@ -424,6 +569,7 @@ class avro_processing(beam.DoFn):
             yield self.mapping_table_name(_data)
             # yield _data
         except Exception as e:
+            print_error(e)
             result = dead_letter_message(
                 destination= 'read_avro_content', 
                 row = data,
@@ -440,3 +586,8 @@ def dead_letter_message(destination,row,error_message,stage):
             "stage": stage,
             "timestamp":(datetime.datetime.now(datetime.timezone.utc))
             })
+def get_data_maping(path,default_dataset,dataset):
+    if isinstance(dataset,dict):
+        path = path.replace('gs://','')
+        return next((dataset.get(sub_folder) for sub_folder in path.split('/') if sub_folder in dataset), default_dataset)
+    else: return dataset
