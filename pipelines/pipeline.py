@@ -5,7 +5,6 @@ import apache_beam as beam
 from .transformations import  write_to_BQ, read_path_from_pubsub, schema_processing, read_avro_content,map_new_data_to_bq_schema, write_error_to_alert
 from config.develop import cdc_ignore_fields, pubsub_config, bigquery_datalake, dead_letter
 from apache_beam.transforms.window import FixedWindows
-
 from config.develop import print_debug,print_error,print_info
 
 def run(beam_options):
