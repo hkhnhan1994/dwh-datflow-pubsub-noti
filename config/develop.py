@@ -33,7 +33,8 @@ bigquery_datalake ={
     "dataset": {
         "cmd_test":"lake_view_cmd",
         "paci_test":"lake_view_paci"
-        }
+        },
+    "default_dataset": "lake_view_cmd"
 }
 dead_letter = {
 "bq_channel":

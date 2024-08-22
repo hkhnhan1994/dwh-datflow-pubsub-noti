@@ -16,7 +16,8 @@ from .functions import (
     create_table, 
     avro_processing,
     fill_null_data,
-    dead_letter_message
+    dead_letter_message,
+    get_data_maping
 )
 import datetime
 
@@ -48,14 +49,37 @@ class read_path_from_pubsub(beam.PTransform):
         )
         return get_message_contains_file_url
 class schema_processing(beam.PTransform):
-    """Ptransform to process the schema read from GCS. including the schema changes handler."""
+    """Ptransform to process the schema read from GCS. including the schema changes handler.
+    
+        Return:
+        Tuple (Tuple(table name,schema),error):
+        
+            ( Table_name, 
+                Schema {
+                    "schema": # Merged Schema
+                        [
+                            {
+                                "name": str,
+                                "type": str,
+                                "mode": str,
+                            },
+                        ],
+                    "is_schema_changes": Bool,
+                    "is_new_table":Bool,
+                    "datalake_maping":
+                        {
+                            "project": str,
+                            "dataset" : str,
+                            "table": str,
+                        }
+                },
+            error -> dead_letter_message
+            )
+    """
     def __init__(self,ignore_fields,bq_pars):
             self.ignore_fields =ignore_fields
             self.bq_pars = bq_pars
-
     def expand(self, pcoll):
-        project = self.bq_pars.get('project')
-        dataset = self.bq_pars.get('dataset')
         _schema = ( # data must be in Arvo format
             pcoll
             |"read schema from arvo file" >> beam.ParDo(read_schema()).with_outputs('error', main='schema')
@@ -66,7 +90,7 @@ class schema_processing(beam.PTransform):
         )
         read_from_bq = (
             to_bq_schema.schema
-            |beam.ParDo(read_bq_schema(),project,dataset).with_outputs('error', main='schema')
+            |beam.ParDo(read_bq_schema(),self.bq_pars).with_outputs('error', main='schema')
         )
         merge_exists_to_current_schema =(
             read_from_bq.schema
@@ -74,7 +98,7 @@ class schema_processing(beam.PTransform):
         )
         create_table_if_needed =(
             merge_exists_to_current_schema.schema
-            |beam.ParDo(create_table(),project, dataset).with_outputs('error', main='schema')
+            |beam.ParDo(create_table()).with_outputs('error', main='schema')
         )
         error = (
             (_schema.error,
@@ -87,9 +111,19 @@ class schema_processing(beam.PTransform):
             # | "write schema process error to channels" >> write_error_to_alert(self.error_handler)
             |beam.Flatten()
         )
-        return create_table_if_needed.schema, error
+        maping_table_name = (
+            create_table_if_needed.schema
+            |beam.Map(lambda x: (x['datalake_maping']['table'],x))
+            |beam.Reshuffle()
+        )
+        return maping_table_name, error
 class read_avro_content(beam.PTransform):
-    """Ptransform to process the avro's content read from GCS."""
+    """Ptransform to process the avro's content read from GCS.
+    
+        Return:
+            Result.data -> (table_name, data)
+            Result.error -> dead_letter_message
+    """
     def __init__(self,ignore_fields):
             self.ignore_fields =ignore_fields
     def expand(self, pcoll):
@@ -102,32 +136,43 @@ class read_avro_content(beam.PTransform):
         return data
 class write_to_BQ(beam.PTransform):
     """Ptransform to write the processed data to Bigquery."""
-    def __init__(self,bq_pars):
+    def __init__(self):
         super().__init__()
-        self.bq_pars=bq_pars
     def expand(self, pcoll):
-        project = self.bq_pars.get('project')
-        dataset = self.bq_pars.get('dataset')
+        class map_data_to_table_name(beam.DoFn):
+           def process(self,data):
+               yield (data['bq_schema']['datalake_maping']['table'],
+                      "{}:{}.{}".format(data['bq_schema']['datalake_maping']['project'],
+                                         data['bq_schema']['datalake_maping']['dataset'],
+                                         data['bq_schema']['datalake_maping']['table'])
+                    )
         class get_data(beam.DoFn):
             def process(self,data):
                 yield data['data']
         class map_schema_to_table_name(beam.DoFn):
-            def process(self,data,project,dataset):
-                yield ("{}:{}.{}".format(project,dataset,data['data']['ingestion_meta_data_object']), {'fields':data['bq_schema']})
+            def process(self,data):
+                yield ("{}:{}.{}".format(data['bq_schema']['datalake_maping']['project'],
+                                         data['bq_schema']['datalake_maping']['dataset'],
+                                         data['bq_schema']['datalake_maping']['table']),
+                       {'fields':data['bq_schema']['schema']})
         data = (pcoll
                 |beam.ParDo(get_data())
                 |"w1" >> beam.WindowInto(FixedWindows(5))
-                
                 )
-        schema =(pcoll
-                 |beam.ParDo(map_schema_to_table_name(),project, dataset)
+        schema = (pcoll
+                 |beam.ParDo(map_schema_to_table_name())
                  |"w2" >> beam.WindowInto(FixedWindows(5))
-                #  | beam.Map(print_debug)
                  )
+        table_name = (pcoll
+                      |beam.ParDo(map_data_to_table_name())
+                      |"w3" >> beam.WindowInto(FixedWindows(5))
+                    #   | beam.Map(print_debug)
+                )
         to_BQ =(
             data                  
             |WriteToBigQuery(
-                table=lambda x: "{}:{}.{}".format(project,dataset,x['ingestion_meta_data_object']),
+                table=lambda table ,table_name:table_name[table['ingestion_meta_data_object']],
+                table_side_inputs = (AsDict(table_name),),
                 schema= lambda table ,bq_schema:bq_schema[table],
                 schema_side_inputs = (AsDict(schema),),
                 write_disposition='WRITE_APPEND',
@@ -150,6 +195,30 @@ class write_to_BQ(beam.PTransform):
         )
         return get_errors
 class map_new_data_to_bq_schema(beam.PTransform):
+    """Fill null data if having any schema changes.
+    
+    Return: Tuple({'data': data, 'bq_schema': bq_schema}):
+    
+        data = data read from arvo file
+        bq_schema =  {
+                        "schema": # Merged Schema
+                            [
+                                {
+                                    "name": str,
+                                    "type": str,
+                                    "mode": str,
+                                },
+                            ],
+                        "is_schema_changes": Bool,
+                        "is_new_table":Bool,
+                        "datalake_maping":
+                            {
+                                "project": str,
+                                "dataset" : str,
+                                "table": str,
+                            }
+                    }
+    """
     def expand(self, pcoll):
         class flatten(beam.DoFn):
             def process(self,data):
