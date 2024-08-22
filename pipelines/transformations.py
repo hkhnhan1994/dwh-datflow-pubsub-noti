@@ -166,8 +166,7 @@ class write_to_BQ(beam.PTransform):
         table_name = (pcoll
                       |beam.ParDo(map_data_to_table_name())
                       |"w3" >> beam.WindowInto(FixedWindows(5))
-                    #   | beam.Map(print_debug)
-                )
+                    )
         to_BQ =(
             data                  
             |WriteToBigQuery(
@@ -180,7 +179,7 @@ class write_to_BQ(beam.PTransform):
                 insert_retry_strategy='RETRY_NEVER',
                 temp_file_format='AVRO',
                 method='STREAMING_INSERTS',
-                # with_auto_sharding=True,
+                with_auto_sharding=True,
                 # kms_key,
             )
         )
