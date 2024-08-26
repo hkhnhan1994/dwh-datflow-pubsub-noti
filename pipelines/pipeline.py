@@ -22,11 +22,11 @@ def run(beam_options):
         )
         data_windows = (
             data.data
-            |"bound windows arvo data" >> beam.WindowInto(FixedWindows(5)) # bound and sync with bq_schema
+            |"bound windows arvo data" >> beam.WindowInto(FixedWindows(3)) # bound and sync with bq_schema
         )
         data_error_windows =(
             data.error
-            |"bound windows arvo data error" >> beam.WindowInto(FixedWindows(5)) # bound and sync with bq_schema
+            |"bound windows arvo data error" >> beam.WindowInto(FixedWindows(3)) # bound and sync with bq_schema
         )
         schema, schema_error = (
             read_file_path
@@ -36,12 +36,12 @@ def run(beam_options):
         schema_windows =(
             schema
             # |beam.Reshuffle()
-            |"bound windows schema" >> beam.WindowInto(FixedWindows(5))
+            |"bound windows schema" >> beam.WindowInto(FixedWindows(3))
             # |beam.Map(print_debug)
         )
         schema_error_windows=(
             schema_error
-            |"bound windows errors schema_error" >> beam.WindowInto(FixedWindows(5))
+            |"bound windows errors schema_error" >> beam.WindowInto(FixedWindows(3))
         )
         data_processing, data_processing_error = (
             ({'data': data_windows, 'bq_schema': schema_windows})
@@ -50,7 +50,7 @@ def run(beam_options):
         )
         data_processing_error_windows=(
             data_processing_error
-            |"bound windows errors data_processing" >> beam.WindowInto(FixedWindows(5))
+            |"bound windows errors data_processing" >> beam.WindowInto(FixedWindows(3))
         )
         to_BQ = (
             data_processing

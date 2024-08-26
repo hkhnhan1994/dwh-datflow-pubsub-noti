@@ -45,7 +45,7 @@ class read_path_from_pubsub(beam.PTransform):
                 | "to json" >> beam.Map(json.loads)
                 |"check if file arrived" >> beam.Filter(filter, self.file_format)
                 | beam.Map(path_former)
-                # |"windowtime pubsub" >> beam.WindowInto(FixedWindows(5))
+                # |"windowtime pubsub" >> beam.WindowInto(FixedWindows(3))
         )
         return get_message_contains_file_url
 class schema_processing(beam.PTransform):
@@ -107,7 +107,7 @@ class schema_processing(beam.PTransform):
              merge_exists_to_current_schema.error,
              create_table_if_needed.error,
              )
-            # |"error w1" >> beam.WindowInto(FixedWindows(5))
+            # |"error w1" >> beam.WindowInto(FixedWindows(3))
             # | "write schema process error to channels" >> write_error_to_alert(self.error_handler)
             |beam.Flatten()
         )
@@ -151,21 +151,22 @@ class write_to_BQ(beam.PTransform):
                 yield data['data']
         class map_schema_to_table_name(beam.DoFn):
             def process(self,data):
-                yield ("{}:{}.{}".format(data['bq_schema']['datalake_maping']['project'],
+                table_name = "{}:{}.{}".format(data['bq_schema']['datalake_maping']['project'],
                                          data['bq_schema']['datalake_maping']['dataset'],
-                                         data['bq_schema']['datalake_maping']['table']),
-                       {'fields':data['bq_schema']['schema']})
+                                         data['bq_schema']['datalake_maping']['table'])
+                print_debug (table_name)
+                yield (table_name,{'fields':data['bq_schema']['schema']})
         data = (pcoll
                 |beam.ParDo(get_data())
-                |"w1" >> beam.WindowInto(FixedWindows(5))
+                |"w1" >> beam.WindowInto(FixedWindows(3))
                 )
         schema = (pcoll
                  |beam.ParDo(map_schema_to_table_name())
-                 |"w2" >> beam.WindowInto(FixedWindows(5))
+                 |"w2" >> beam.WindowInto(FixedWindows(3))
                  )
         table_name = (pcoll
                       |beam.ParDo(map_data_to_table_name())
-                      |"w3" >> beam.WindowInto(FixedWindows(5))
+                      |"w3" >> beam.WindowInto(FixedWindows(3))
                     )
         to_BQ =(
             data                  
@@ -178,8 +179,16 @@ class write_to_BQ(beam.PTransform):
                 create_disposition='CREATE_NEVER',  
                 insert_retry_strategy='RETRY_NEVER',
                 temp_file_format='AVRO',
-                method='STREAMING_INSERTS',
+                # method='STORAGE_WRITE_API',
+                triggering_frequency=3,
                 with_auto_sharding=True,
+                # additional_bq_parameters={
+                #     'timePartitioning': 
+                #         {
+                #             'type': 'HOUR',
+                #             'field': 'ingestion_meta_data_processing_timestamp'
+                #         }
+                # }
                 # kms_key,
             )
         )
@@ -231,7 +240,7 @@ class map_new_data_to_bq_schema(beam.PTransform):
                         error_message = e,
                         stage='flatten'
                     )
-                    print_debug(e)
+                    print_error(e)
                     yield TaggedOutput('error',result)
                     
         get_data = (pcoll|beam.ParDo(flatten()).with_outputs('error', main='data'))
@@ -241,7 +250,7 @@ class map_new_data_to_bq_schema(beam.PTransform):
         )
         error = (
             (get_data.error,fill_null.error)
-            # |"error w2" >> beam.WindowInto(FixedWindows(5))
+            # |"error w2" >> beam.WindowInto(FixedWindows(3))
             |beam.Flatten()
         )
         return fill_null.data, error
