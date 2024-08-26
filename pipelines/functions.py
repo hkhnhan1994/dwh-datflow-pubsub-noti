@@ -13,6 +13,7 @@ from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.pvalue import TaggedOutput
 import hashlib
 from config.develop import print_debug,print_error,print_info
+
 # print = logging.info
 class merge_schema(beam.DoFn):
     """Merge current schema into exists schema.
@@ -577,6 +578,7 @@ class avro_processing(beam.DoFn):
                 stage='avro_processing'
             )
             yield TaggedOutput('error',result)
+
 def dead_letter_message(destination,row,error_message,stage):
     """The letter format to return whenever the error orrcurs."""
     return  ("error" ,{

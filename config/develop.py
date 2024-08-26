@@ -12,7 +12,7 @@ beam_config={
     "worker_region": 'europe-west1',
     "machine_type": 'n1-standard-1',
     "disk_size_gb": 10,
-    "runner": "DataflowRunner", # DirectRunner DataflowRunner
+    "runner": "DirectRunner", # DirectRunner DataflowRunner
     "setup_file": './setup.py',
     "save_main_session" : True,
     "streaming": True,
@@ -38,6 +38,7 @@ bigquery_datalake ={
         "paci_test":"lake_view_paci"
         },
     "default_dataset": "lake_view_cmd"
+    
 }
 dead_letter = {
 "bq_channel":

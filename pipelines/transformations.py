@@ -4,7 +4,7 @@
 import apache_beam as beam
 import json
 from apache_beam.pvalue import AsDict
-from apache_beam.io.gcp.bigquery import WriteToBigQuery
+from .bigquery import WriteToBigQuery
 from apache_beam.transforms.window import FixedWindows, GlobalWindows
 # from apache_beam.transforms import trigger 
 from apache_beam.pvalue import TaggedOutput
@@ -139,48 +139,13 @@ class write_to_BQ(beam.PTransform):
     def __init__(self):
         super().__init__()
     def expand(self, pcoll):
-        class map_data_to_table_name(beam.DoFn):
-           def process(self,data):
-               yield (data['bq_schema']['datalake_maping']['table'],
-                      "{}:{}.{}".format(data['bq_schema']['datalake_maping']['project'],
-                                         data['bq_schema']['datalake_maping']['dataset'],
-                                         data['bq_schema']['datalake_maping']['table'])
-                    )
-        class get_data(beam.DoFn):
-            def process(self,data):
-                yield data['data']
-        class map_schema_to_table_name(beam.DoFn):
-            def process(self,data):
-                table_name = "{}:{}.{}".format(data['bq_schema']['datalake_maping']['project'],
-                                         data['bq_schema']['datalake_maping']['dataset'],
-                                         data['bq_schema']['datalake_maping']['table'])
-                print_debug (table_name)
-                yield (table_name,{'fields':data['bq_schema']['schema']})
-        data = (pcoll
-                |beam.ParDo(get_data())
-                |"w1" >> beam.WindowInto(FixedWindows(3))
-                )
-        schema = (pcoll
-                 |beam.ParDo(map_schema_to_table_name())
-                 |"w2" >> beam.WindowInto(FixedWindows(3))
-                 )
-        table_name = (pcoll
-                      |beam.ParDo(map_data_to_table_name())
-                      |"w3" >> beam.WindowInto(FixedWindows(3))
-                    )
         to_BQ =(
-            data                  
+            pcoll                  
+            # | "Re-window" >> beam.WindowInto(GlobalWindows())
             |WriteToBigQuery(
-                table=lambda table ,table_name:table_name[table['ingestion_meta_data_object']],
-                table_side_inputs = (AsDict(table_name),),
-                schema= lambda table ,bq_schema:bq_schema[table],
-                schema_side_inputs = (AsDict(schema),),
                 write_disposition='WRITE_APPEND',
                 create_disposition='CREATE_NEVER',  
                 insert_retry_strategy='RETRY_NEVER',
-                temp_file_format='AVRO',
-                # method='STORAGE_WRITE_API',
-                triggering_frequency=3,
                 with_auto_sharding=True,
                 # additional_bq_parameters={
                 #     'timePartitioning': 
