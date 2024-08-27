@@ -3,9 +3,7 @@
 # import logging
 import apache_beam as beam
 import json
-from apache_beam.pvalue import AsDict
 from .mybigquery import WriteToBigQuery
-from apache_beam.transforms.window import FixedWindows, GlobalWindows
 # from apache_beam.transforms import trigger 
 from apache_beam.pvalue import TaggedOutput
 from .functions import (
@@ -17,7 +15,6 @@ from .functions import (
     avro_processing,
     fill_null_data,
     dead_letter_message,
-    get_data_maping
 )
 import datetime
 

@@ -588,8 +588,3 @@ def dead_letter_message(destination,row,error_message,stage):
             "stage": stage,
             "timestamp":(datetime.datetime.now(datetime.timezone.utc))
             })
-def get_data_maping(path,default_dataset,dataset):
-    if isinstance(dataset,dict):
-        path = path.replace('gs://','')
-        return next((dataset.get(sub_folder) for sub_folder in path.split('/') if sub_folder in dataset), default_dataset)
-    else: return dataset
