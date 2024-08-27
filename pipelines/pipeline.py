@@ -57,8 +57,12 @@ def run(beam_options):
             |beam.Reshuffle()
             |write_to_BQ()
         )
+        to_BQ_error_windows = (
+            to_BQ
+            |"bound windows errors to_BQ" >> beam.WindowInto(FixedWindows(3))
+        )
         errors =(
-            (to_BQ,data_processing_error_windows,schema_error_windows,data_error_windows )
+            (to_BQ_error_windows,data_processing_error_windows,schema_error_windows,data_error_windows )
             | write_error_to_alert(dead_letter) 
         ) 
   

@@ -4,7 +4,7 @@
 import apache_beam as beam
 import json
 from apache_beam.pvalue import AsDict
-from .bigquery import WriteToBigQuery
+from .mybigquery import WriteToBigQuery
 from apache_beam.transforms.window import FixedWindows, GlobalWindows
 # from apache_beam.transforms import trigger 
 from apache_beam.pvalue import TaggedOutput
@@ -140,7 +140,7 @@ class write_to_BQ(beam.PTransform):
         super().__init__()
     def expand(self, pcoll):
         to_BQ =(
-            pcoll                  
+            pcoll                 
             # | "Re-window" >> beam.WindowInto(GlobalWindows())
             |WriteToBigQuery(
                 write_disposition='WRITE_APPEND',
@@ -246,7 +246,7 @@ class write_error_to_alert(beam.PTransform):
             flatten_errors
             |beam.Map(convert_to_string)
             |beam.io.WriteToBigQuery(
-                method=WriteToBigQuery.Method.STREAMING_INSERTS,
+                method=beam.io.WriteToBigQuery.Method.STREAMING_INSERTS,
                 table="{}:{}.{}".format(self.config['bq_channel']['project'],self.config['bq_channel']['dataset'],self.config['bq_channel']['table_id']),
                 schema=self.config['bq_channel']['schema'],
         )
