@@ -1,14 +1,10 @@
 
 import random
 import uuid
-import itertools
-import time
-from apache_beam.io.gcp.bigquery_tools import RetryStrategy
 from objsize import get_deep_size
 import apache_beam as beam
 from apache_beam import pvalue
 from apache_beam.io.gcp import bigquery_tools
-from apache_beam.options import value_provider as vp
 from apache_beam.transforms import DoFn
 from apache_beam.transforms import ParDo
 from apache_beam.transforms import PTransform
