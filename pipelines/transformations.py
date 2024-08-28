@@ -193,8 +193,11 @@ class map_new_data_to_bq_schema(beam.PTransform):
         class flatten(beam.DoFn):
             def process(self,data):
                 try:
+                    if len(data[1]['bq_schema'])>0:
+                        bq_schema = data[1]['bq_schema'][0]
+                    else: bq_schema = []
                     for dt in data[1]['data']:
-                        yield ({'data':dt,'bq_schema':data[1]['bq_schema'][0]} )
+                        yield ({'data':dt,'bq_schema':bq_schema} )
                 except Exception as e:
                     result = dead_letter_message(
                         destination= 'map_new_data_to_bq_schema', 
@@ -226,6 +229,9 @@ class write_error_to_alert(beam.PTransform):
             for key, val in data.items():
                 data[key]=str(val)
             return data
+        def remove_content(data):
+            del data['row']
+            return data
         flatten_errors = ( pcoll 
                           |"flatten error" >> beam.Flatten()
                           |beam.Map(lambda x: x[-1])
@@ -235,7 +241,7 @@ class write_error_to_alert(beam.PTransform):
         pubsub_topic = "projects/{}/topics/{}".format(self.config['chat_channel']['project'],self.config['chat_channel']['topics'])
         to_pubsub =(
             flatten_errors
-            | beam.Map(lambda x: x.pop('row'))
+            | beam.Map(remove_content)
             | beam.Map(lambda x: str(x).encode('utf-8'))
             |beam.io.WriteToPubSub(pubsub_topic)
         )
