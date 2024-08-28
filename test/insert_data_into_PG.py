@@ -56,8 +56,8 @@ service_account = (
 
 project = "pj-bu-dw-raw-dev"
 dataset = [
-        #    "P1_PCMD",
-        #    "P1_PACI",
+           "P1_PCMD",
+           "P1_PACI",
         #    "H1_HEHE",
         #    "H2_HEHE",
            "H3_HEHE",
@@ -73,14 +73,17 @@ dataset = [
 
     
 def read_bq(project,dataset,table_id,client):
-
+    # print(f"reading data from GCP table {project}.{dataset}.{table_id}")
     query_job = client.query(
         f"""select * from {project}.{dataset}.{table_id} limit 50000"""
         ) 
+
     rows = query_job.result().to_dataframe()
+    # print(f"converted to df")
     schema = client.get_table(f"{project}.{dataset}.{table_id}")
     f = io.StringIO("")
     client.schema_to_json(schema.schema,f)
+    # print('get schema')
     return rows , json.loads(f.getvalue()) # return data and schema
 
 def convert_bq_schema_to_postgres(bigquery_schema):
@@ -146,7 +149,7 @@ def create_table_insert_data_pg(data,schema,
         cursor = conn.cursor()
         
         #test schema change
-        schema.update({'extra_col1': 'TIMESTAMP'})
+        # schema.update({'extra_col1': 'TIMESTAMP'})
         # schema.update({'extra_col2': 'TEXT'})
         # Create a PostgreSQL table if it doesn't exist
         
@@ -165,11 +168,11 @@ def create_table_insert_data_pg(data,schema,
             # Extract column names
             columns = ', '.join(data.columns).lower()
             #test schema change
-            columns = columns+ ', extra_col1'
+            # columns = columns+ ', extra_col1'
             # Convert row values to PostgreSQL format 2023-07-07T08:25:00.052657+00:00
             values = [to_pg_format(x) for x in row.values]
             #test schema change
-            values.append(datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"))
+            # values.append(datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"))
             # values.append("just test")
             # Create the INSERT query with placeholders
             insert_query = f"""
