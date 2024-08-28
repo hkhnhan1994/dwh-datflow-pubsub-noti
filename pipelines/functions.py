@@ -139,7 +139,7 @@ class read_bq_schema(beam.DoFn):
             yield ({"bq_schema":bq_table, "avro_schema":schema, "datalake_maping":datalake_maping})
         except Exception as e:
             try:
-                print_error(e)
+                # print_error(e)
                 print_info("not found table {}.{}.{}".format(bq_pars.get('project'),dataset_id,schema['name']))
                 print_debug({"bq_schema":[], "avro_schema":schema, "datalake_maping":datalake_maping})
                 yield ({"bq_schema":[], "avro_schema":schema, "datalake_maping":datalake_maping})
