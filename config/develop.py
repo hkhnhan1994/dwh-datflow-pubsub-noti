@@ -7,7 +7,7 @@ beam_config={
     "project": "pj-bu-dw-data-sbx",
     "region": "europe-west1",
     "max_num_workers": 5,
-    "max_cache_memory_usage_mb": 512,
+    "max_cache_memory_usage_mb": 1024,
     "num_workers": 1,
     "worker_region": 'europe-west1',
     "machine_type": 'n1-standard-1',
