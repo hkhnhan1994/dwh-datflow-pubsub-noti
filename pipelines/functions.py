@@ -63,10 +63,10 @@ class merge_schema(beam.DoFn):
             if is_new_table is False:
                 if bool(diff_list):
                     print_info(f'extra fields: {diff_list}')
-                else: print_debug('schema does not change while checking new fields')
+                else: print_debug('schema of table {}  does not change while checking new fields'.format(merge_schema['datalake_maping']['table']))
                 if bool(diff_list_but_no_update_schema):
-                    print_info(f'deleted fields: {diff_list_but_no_update_schema}')
-                else:  print_debug('schema does not change while checking removed fields')
+                    print_info('table {} deleted fields: {}'.format(merge_schema['datalake_maping']['table'],diff_list_but_no_update_schema))
+                else:  print_debug('schema of table {} does not change while checking removed fields'.format(merge_schema['datalake_maping']['table']))
             else : 
                 print_info('found new table {}'.format(merge_schema['datalake_maping']['table']))
             yield ({'schema':merged_schema, 'is_schema_changes':bool(diff_list),'is_new_table':is_new_table,'datalake_maping': merge_schema['datalake_maping']})      
@@ -191,7 +191,6 @@ class create_table(beam.DoFn):
             )
     def process(self,schema):
         try:
-            print_debug(schema)
             if schema['is_new_table']: 
                 # if new table detected
                 bq_schema = get_bq_tableschema({'fields':schema['schema']})
