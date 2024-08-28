@@ -1,7 +1,7 @@
 """Configuration of the dataflow."""
 
 beam_config={
-    "job_name": "cmd-stream",
+    "job_name": "cmd-stream1",
     "staging_location": "gs://test_bucket_upvn/datastream-postgres/Beam-pubsub/staging",
     "temp_location": "gs://test_bucket_upvn/datastream-postgres/Beam-pubsub/temp",
     "project": "pj-bu-dw-data-sbx",
@@ -12,7 +12,7 @@ beam_config={
     "worker_region": 'europe-west1',
     "machine_type": 'n1-standard-1',
     "disk_size_gb": 10,
-    "runner": "DataflowRunner", # DirectRunner DataflowRunner
+    "runner": "DirectRunner", # DirectRunner DataflowRunner
     "setup_file": './setup.py',
     "save_main_session" : True,
     "streaming": True,
@@ -60,12 +60,13 @@ dead_letter = {
         "project": "pj-bu-dw-data-sbx",
     },
         }
-LOCAL_LOG = False
+LOCAL_LOG = True
 
 if LOCAL_LOG:
     print_info = print
     print_debug = print
     print_error = print
+    print_info("local log")
 else:
     import logging
     print_info = logging.info

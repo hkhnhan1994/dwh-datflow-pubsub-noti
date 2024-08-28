@@ -1,6 +1,14 @@
 """Main pipline for structured data lake."""
 import apache_beam as beam
-from .transformations import  write_to_BQ, read_path_from_pubsub, schema_processing, read_avro_content,map_new_data_to_bq_schema, write_error_to_alert
+from .transformations import  (
+    write_to_BQ, 
+    read_path_from_pubsub, 
+    schema_processing, 
+    read_avro_content,
+    map_new_data_to_bq_schema, 
+    write_error_to_alert
+)
+    
 from config.develop import cdc_ignore_fields, pubsub_config, bigquery_datalake, dead_letter
 from apache_beam.transforms.window import FixedWindows
 from config.develop import print_debug,print_error,print_info
@@ -11,7 +19,7 @@ def run(beam_options):
         read_file_path = (
             p
             | read_path_from_pubsub(pubsub_config=pubsub_config)
-            # |beam.Map(print_debug)
+            # |beam.Map(print)
         )
         data = (
             read_file_path
@@ -29,10 +37,10 @@ def run(beam_options):
         schema, schema_error = (
             read_file_path
             |schema_processing(cdc_ignore_fields,bq_pars=bigquery_datalake)
-            # |beam.Map(print_debug)
             )
         schema_windows =(
             schema
+            # |beam.Map(print_debug)
             # |beam.Reshuffle()
             |"bound windows schema" >> beam.WindowInto(FixedWindows(3))
             # |beam.Map(print_debug)

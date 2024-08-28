@@ -67,6 +67,8 @@ class merge_schema(beam.DoFn):
                 if bool(diff_list_but_no_update_schema):
                     print_info(f'deleted fields: {diff_list_but_no_update_schema}')
                 else:  print_debug('schema does not change while checking removed fields')
+            else : 
+                print_info('found new table {}'.format(merge_schema['datalake_maping']['table']))
             yield ({'schema':merged_schema, 'is_schema_changes':bool(diff_list),'is_new_table':is_new_table,'datalake_maping': merge_schema['datalake_maping']})      
         except Exception as e:
             print_error('data {} --> get error {}'.format(merge_schema,e))
@@ -119,27 +121,27 @@ class read_bq_schema(beam.DoFn):
     def setup(self):
         self.client = bigquery.Client()
     def process(self,schema, bq_pars):
-        try:
-            dataset_id  = get_data_maping(schema['path'],bq_pars.get('default_dataset'),bq_pars.get('dataset'))
-            print_debug("{} store to {}".format(schema['path'],dataset_id))
-            datalake_maping ={
+        dataset_id  = get_data_maping(schema['path'],bq_pars.get('default_dataset'),bq_pars.get('dataset'))
+        datalake_maping ={
                 "project": bq_pars.get('project'),
                 "dataset" : dataset_id,
                 "table": schema['name'],
                 "bq_pars":bq_pars
             }
-            dataset_ref = self.client.dataset(dataset_id=datalake_maping['dataset'], project=datalake_maping['project'])
+        try:
+            print_debug("{} store to {}".format(schema['path'],dataset_id))
+            dataset_ref = self.client.dataset(dataset_id=dataset_id, project=datalake_maping['project'])
             table_ref = dataset_ref.table(datalake_maping['table'])
             table = self.client.get_table(table_ref)
             f = io.StringIO("")
             self.client.schema_to_json(table.schema, f)
             bq_table = json.loads(f.getvalue())
-            
             yield ({"bq_schema":bq_table, "avro_schema":schema, "datalake_maping":datalake_maping})
         except Exception as e:
             try:
                 print_error(e)
-                print_info("not found table {}.{}.{}".format(bq_pars.get('project'),bq_pars.get('dataset'),schema['name']))
+                print_info("not found table {}.{}.{}".format(bq_pars.get('project'),dataset_id,schema['name']))
+                print_debug({"bq_schema":[], "avro_schema":schema, "datalake_maping":datalake_maping})
                 yield ({"bq_schema":[], "avro_schema":schema, "datalake_maping":datalake_maping})
             except Exception as e:
                 print_error(e)
@@ -189,9 +191,10 @@ class create_table(beam.DoFn):
             )
     def process(self,schema):
         try:
+            print_debug(schema)
             if schema['is_new_table']: 
                 # if new table detected
-                schema = get_bq_tableschema({'fields':schema['schema']})
+                bq_schema = get_bq_tableschema({'fields':schema['schema']})
                 self.bq_table.get_or_create_dataset(
                     project_id = schema['datalake_maping']['project'],
                     dataset_id = schema['datalake_maping']['dataset'],
@@ -201,11 +204,16 @@ class create_table(beam.DoFn):
                     project_id = schema['datalake_maping']['project'],
                     dataset_id = schema['datalake_maping']['dataset'],
                     table_id = schema['datalake_maping']['table'],
-                    schema = schema,
+                    schema = bq_schema,
                     create_disposition= 'CREATE_IF_NEEDED',
                     write_disposition= 'WRITE_EMPTY'
                 )
-                print_info(f'new table {schema[0]} has been created')
+                print_info('new table {}.{}.{} has been created'.format(
+                    schema['datalake_maping']['project'],
+                    schema['datalake_maping']['dataset'],
+                    schema['datalake_maping']['table']
+                )
+                )
             else:
                 if schema['is_schema_changes']: 
                     # if schema changes detected
@@ -243,11 +251,11 @@ class fill_null_data(beam.DoFn):
                     fill_null[field_name] = data['data'].get(field_name, None)
                     # list_of_data.append(fill_null)
                 data['data'] = fill_null
-            yield (data)
+            yield data
         except Exception as e:
             print_error(e)
             result = dead_letter_message(
-                destination= 'data_processing', 
+                destination= 'data_processing',
                 row = data,
                 error_message = e,
                 stage='fill_null_data'

@@ -56,14 +56,14 @@ service_account = (
 
 project = "pj-bu-dw-raw-dev"
 dataset = [
-           "P1_PCMD",
-           "P1_PACI",
+        #    "P1_PCMD",
+        #    "P1_PACI",
         #    "H1_HEHE",
         #    "H2_HEHE",
-        #    "H3_HEHE",
+           "H3_HEHE",
         #    "H1_HKLC",
         #    "H2_HKLC",
-        #    "H3_HKLC",
+           "H3_HKLC",
         # "D1_DDEL"
            ]
 # table_id = "customers"
@@ -151,7 +151,7 @@ def create_table_insert_data_pg(data,schema,
         # Create a PostgreSQL table if it doesn't exist
         
         create_table_query = f"""
-        -- DROP TABLE IF EXISTS {pg_table};
+        DROP TABLE IF EXISTS {pg_table};
         CREATE TABLE IF NOT EXISTS {pg_table} (
             {', '.join([f'"{col}" {type}' for col,type in schema.items()])}
         );

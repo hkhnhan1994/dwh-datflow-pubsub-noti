@@ -2,7 +2,7 @@
     "kind": "storage#object",
     "id": "test_bucket_upvn/datastream-postgres/datastream/cmd_test/public_dwh_entity_role_properties/2024/06/13/11/19/7bb32d069d36f7728b1ca66f812bb4ff24413219_postgresql-backfill_-96622484_7_17761.avro/1718277583065345",
     "selfLink": "https://www.googleapis.com/storage/v1/b/test_bucket_upvn/o/datastream-postgres%2Fdatastream%2Fcmd_test%2Fpublic_dwh_entity_role_properties%2F2024%2F06%2F13%2F11%2F19%2F7bb32d069d36f7728b1ca66f812bb4ff24413219_postgresql-backfill_-96622484_7_17761.avro",
-    "name": "datastream-postgres/datastream/cmd_test/public_dwh_entity_role_properties/2024/06/13/11/19/7bb32d069d36f7728b1ca66f812bb4ff24413219_postgresql-backfill_-96622484_7_17761.avro",
+    "name": "datastream-postgres/datastream/cmd_test/public_tblklantsysattr/2024/08/28/08/00/ad92609e645207cd38728b78b17cef1b829e9d43_postgresql-cdc_-96622484_7_531013.avro'",
     "bucket": "test_bucket_upvn",
     "generation": "1718277583065345",
     "metageneration": "1",
