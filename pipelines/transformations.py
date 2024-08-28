@@ -4,6 +4,7 @@
 import apache_beam as beam
 import json
 from .mybigquery import WriteToBigQuery
+from apache_beam.io.gcp.pubsub  import ReadFromPubSub
 # from apache_beam.transforms import trigger 
 from apache_beam.pvalue import TaggedOutput
 from .functions import (
@@ -39,6 +40,7 @@ class read_path_from_pubsub(beam.PTransform):
         get_message_contains_file_url =(
                 pcoll
                 | "read gcs noti" >> beam.io.MultipleReadFromPubSub(subs).with_output_types(bytes) 
+                # | "read gcs noti" >> ReadFromPubSub(subscription = "projects/pj-bu-dw-data-sbx/subscriptions/test1mess").with_output_types(bytes)
                 | "to json" >> beam.Map(json.loads)
                 |"check if file arrived" >> beam.Filter(filter, self.file_format)
                 | beam.Map(path_former)
@@ -193,11 +195,11 @@ class map_new_data_to_bq_schema(beam.PTransform):
         class flatten(beam.DoFn):
             def process(self,data):
                 try:
-                    if len(data[1]['bq_schema'])>0:
-                        bq_schema = data[1]['bq_schema'][0]
-                    else: bq_schema = []
+                    # if len(data[1]['bq_schema'])>0:
+                    #     bq_schema = data[1]['bq_schema'][0]
+                    # else: bq_schema = []
                     for dt in data[1]['data']:
-                        yield ({'data':dt,'bq_schema':bq_schema} )
+                        yield ({'data':dt,'bq_schema':data[1]['bq_schema'][0]} )
                 except Exception as e:
                     result = dead_letter_message(
                         destination= 'map_new_data_to_bq_schema', 
