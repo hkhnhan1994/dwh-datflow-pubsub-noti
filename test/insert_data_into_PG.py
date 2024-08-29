@@ -149,8 +149,8 @@ def create_table_insert_data_pg(data,schema,
         cursor = conn.cursor()
         
         #test schema change
-        # schema.update({'extra_col1': 'TIMESTAMP'})
-        # schema.update({'extra_col2': 'TEXT'})
+        schema.update({'extra_col1': 'TIMESTAMP'})
+        schema.update({'extra_col2': 'TEXT'})
         # Create a PostgreSQL table if it doesn't exist
         
         create_table_query = f"""
@@ -168,12 +168,13 @@ def create_table_insert_data_pg(data,schema,
             # Extract column names
             columns = ', '.join(data.columns).lower()
             #test schema change
-            # columns = columns+ ', extra_col1'
+            columns = columns+ ', extra_col1'
+            columns = columns+ ', extra_col2'
             # Convert row values to PostgreSQL format 2023-07-07T08:25:00.052657+00:00
             values = [to_pg_format(x) for x in row.values]
             #test schema change
-            # values.append(datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"))
-            # values.append("just test")
+            values.append(datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"))
+            values.append("just test")
             # Create the INSERT query with placeholders
             insert_query = f"""
             INSERT INTO {pg_table} ({columns}) 
