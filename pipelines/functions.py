@@ -69,7 +69,7 @@ class merge_schema(beam.DoFn):
                 else:  print_debug('schema of table {} does not change while checking removed fields'.format(merge_schema['datalake_maping']['table']))
             else : 
                 print_info('found new table {}'.format(merge_schema['datalake_maping']['table']))
-            yield ({'schema':merged_schema, 'is_schema_changes':bool(diff_list),'is_new_table':is_new_table,'datalake_maping': merge_schema['datalake_maping']})      
+            yield ({'schema':merged_schema, 'is_schema_changes':diff_list,'is_new_table':is_new_table,'datalake_maping': merge_schema['datalake_maping']})      
         except Exception as e:
             print_error('data {} --> get error {}'.format(merge_schema,e))
             result = dead_letter_message(
@@ -214,7 +214,7 @@ class create_table(beam.DoFn):
                 )
                 )
             else:
-                if schema['is_schema_changes']: 
+                if len(schema['is_schema_changes']) > 0 : 
                     # if schema changes detected
                     # print('schema changes detected')
                     new_schema = [self._parse_schema_field(f) for f in schema['schema']]
@@ -224,7 +224,11 @@ class create_table(beam.DoFn):
                     )
                     table.schema = new_schema
                     self.bq_table.gcp_bq_client.update_table(table, ['schema'])
-                    print_info('schema changes updated')
+                    print_info('schema changes updated new fields {} into table {}.{}.{}'.format(schema['is_schema_changes'], 
+                                                                                        schema['datalake_maping']['project'],
+                                                                                        schema['datalake_maping']['dataset'],
+                                                                                        schema['datalake_maping']['table'] 
+                                                                                        ))
             # yield (schema['name'], schema['schema'])
             yield schema
         except Exception as e:
