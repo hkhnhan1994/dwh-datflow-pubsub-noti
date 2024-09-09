@@ -1,13 +1,13 @@
 """Configuration of the dataflow."""
 
 beam_config={
-    "job_name": "cmd-stream",
+    "job_name": "cmd-stream1",
     "staging_location": "gs://test_bucket_upvn/datastream-postgres/Beam-pubsub/staging",
     "temp_location": "gs://test_bucket_upvn/datastream-postgres/Beam-pubsub/temp",
     "project": "pj-bu-dw-data-sbx",
     "region": "europe-west1",
     "max_num_workers": 30,
-    "max_cache_memory_usage_mb": 2048,
+    "max_cache_memory_usage_mb": 512,
     "num_workers": 1,
     "worker_region": 'europe-west1',
     "machine_type": 'n1-standard-1',
