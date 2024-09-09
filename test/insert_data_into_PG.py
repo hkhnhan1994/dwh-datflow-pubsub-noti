@@ -56,14 +56,13 @@ service_account = (
 
 project = "pj-bu-dw-raw-dev"
 dataset = [
-           "P1_PCMD",
-           "P1_PACI",
+        #    "P1_PCMD",
+        #    "P1_PACI",
         #    "H1_HEHE",
         #    "H2_HEHE",
-           "H3_HEHE",
+	    "H3_HEHE",
         #    "H1_HKLC",
         #    "H2_HKLC",
-           "H3_HKLC",
         # "D1_DDEL"
            ]
 # table_id = "customers"
@@ -150,7 +149,9 @@ def create_table_insert_data_pg(data,schema,
         
         #test schema change
         schema.update({'extra_col1': 'TIMESTAMP'})
-        schema.update({'extra_col2': 'TEXT'})
+        # schema.update({'extra_col2': 'TEXT'})
+        # schema.update({'extra_col3': 'TEXT'})
+        # schema.update({'extra_col4': 'TEXT'})
         # Create a PostgreSQL table if it doesn't exist
         
         create_table_query = f"""
@@ -169,12 +170,16 @@ def create_table_insert_data_pg(data,schema,
             columns = ', '.join(data.columns).lower()
             #test schema change
             columns = columns+ ', extra_col1'
-            columns = columns+ ', extra_col2'
+            # columns = columns+ ', extra_col2'
+            # columns = columns+ ', extra_col3'
+            # columns = columns+ ', extra_col4'
             # Convert row values to PostgreSQL format 2023-07-07T08:25:00.052657+00:00
             values = [to_pg_format(x) for x in row.values]
             #test schema change
             values.append(datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"))
-            values.append("just test")
+            # values.append("just test")
+            # values.append("just test")
+            # values.append("just test")
             # Create the INSERT query with placeholders
             insert_query = f"""
             INSERT INTO {pg_table} ({columns}) 
