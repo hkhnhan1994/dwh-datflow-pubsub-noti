@@ -1,7 +1,7 @@
 """Configuration of the dataflow."""
 
 beam_config={
-    "job_name": "cmd-stream1",
+    "job_name": "cmd-stream",
     "staging_location": "gs://test_bucket_upvn/datastream-postgres/Beam-pubsub/staging",
     "temp_location": "gs://test_bucket_upvn/datastream-postgres/Beam-pubsub/temp",
     "project": "pj-bu-dw-data-sbx",
@@ -21,7 +21,10 @@ beam_config={
 }
 pubsub_config={
     "project": "pj-bu-dw-data-sbx",
-    "subscription": ["test1mess","test_sub"]  # test1mess test_sub gs_noti_dead_letter_sub
+    "subscription": ["test1mess","test_sub"],  # test1mess test_sub gs_noti_dead_letter_sub
+    "blob_name_prefix": "datastream-postgres/datastream/cmd_test",
+    "bucket_name": "test_bucket_upvn",
+    "topic_name": "gcs_noti"
 }
 cdc_ignore_fields = [
     'stream_name',
