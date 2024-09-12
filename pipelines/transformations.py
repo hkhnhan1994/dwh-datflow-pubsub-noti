@@ -4,8 +4,7 @@
 import apache_beam as beam
 import json
 from .mybigquery import WriteToBigQuery
-from apache_beam.io.gcp.pubsub  import ReadFromPubSub
-# from apache_beam.transforms import trigger 
+
 from apache_beam.pvalue import TaggedOutput
 from .functions import (
     read_schema, 
