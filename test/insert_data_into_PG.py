@@ -64,20 +64,16 @@ dataset = [
         #    "H1_HKLC",
         #    "H2_HKLC",
         "H3_HKLC",
+        "H1_HKVK",
         # "D1_DDEL"
            ]
 # table_id = "customers"
-
-
-
-
     
 def read_bq(project,dataset,table_id,client):
     # print(f"reading data from GCP table {project}.{dataset}.{table_id}")
     query_job = client.query(
-        f"""select * from {project}.{dataset}.{table_id} limit 50000"""
+        f"""select * from {project}.{dataset}.{table_id} limit 10000"""
         ) 
-
     rows = query_job.result().to_dataframe()
     # print(f"converted to df")
     schema = client.get_table(f"{project}.{dataset}.{table_id}")
@@ -149,15 +145,15 @@ def create_table_insert_data_pg(data,schema,
         cursor = conn.cursor()
         
         #test schema change
-        schema.update({'extra_col1': 'TIMESTAMP'})
+        schema.update({'insert_timestamp': 'TIMESTAMP'})
         # schema.update({'extra_col2': 'TEXT'})
         # schema.update({'extra_col3': 'TEXT'})
         # schema.update({'extra_col4': 'TEXT'})
         # Create a PostgreSQL table if it doesn't exist
         
         create_table_query = f"""
-        DROP TABLE IF EXISTS {pg_table};
-        CREATE TABLE IF NOT EXISTS {pg_table} (
+        DROP TABLE IF EXISTS "{pg_table}";
+        CREATE TABLE IF NOT EXISTS "{pg_table}" (
             {', '.join([f'"{col}" {type}' for col,type in schema.items()])}
         );
         """
@@ -170,7 +166,7 @@ def create_table_insert_data_pg(data,schema,
             # Extract column names
             columns = ', '.join(data.columns).lower()
             #test schema change
-            columns = columns+ ', extra_col1'
+            columns = columns+ ', insert_timestamp'
             # columns = columns+ ', extra_col2'
             # columns = columns+ ', extra_col3'
             # columns = columns+ ', extra_col4'
@@ -183,7 +179,7 @@ def create_table_insert_data_pg(data,schema,
             # values.append("just test")
             # Create the INSERT query with placeholders
             insert_query = f"""
-            INSERT INTO {pg_table} ({columns}) 
+            INSERT INTO "{pg_table}" ({columns}) 
             VALUES ({', '.join(['%s'] * len(values))})
             """
             insert_query = insert_query.replace("'", '"')
@@ -205,6 +201,7 @@ def create_table_insert_data_pg(data,schema,
         # Close the cursor and connection
         cursor.close()
         conn.close()
+        return {'table name':pg_table, 'Number records':data.shape[0]}
 
 def read_bq_to_postgres(
     project,
@@ -215,20 +212,20 @@ def read_bq_to_postgres(
     pg_dbname='db_cmd',
     pg_user='db_cmd_user',
     pg_password='123456'):
+    export_table = pd.DataFrame(columns=['table name', 'Number records'])
     for dataset in datasets:
         tables = client.list_tables(dataset)
         for table in tables:
             data, schema = read_bq(project,dataset,table.table_id,client)
             postgres_schema = convert_bq_schema_to_postgres(schema)
-            # print(postgres_schema)
-            # data = data.where(pd.notnull(data), None)
-            create_table_insert_data_pg(data,postgres_schema, pg_host,pg_port,pg_dbname,pg_user,pg_password,table.table_id)
-            
-            data = data.replace({pd.NA: None})
-
+            # data = data.replace({pd.NA: None})
+            new_record = create_table_insert_data_pg(data,postgres_schema, pg_host,pg_port,pg_dbname,pg_user,pg_password,table.table_id)
+            df_extended = pd.DataFrame(new_record, index=[0])
+            export_table = pd.concat([export_table, df_extended],ignore_index = True)
+    return export_table
 client = bigquery.Client(project=project)
 
-read_bq_to_postgres(project,dataset,client)
-
+out = read_bq_to_postgres(project,dataset,client)
+out.to_csv('output.csv')
 # bq_data, bq_schema  = read_bq(project,dataset,table_id,client)
 # postgres_schema = convert_bq_schema_to_postgres(bq_schema)
