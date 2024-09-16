@@ -11,7 +11,7 @@ from apache_beam.transforms import PTransform
 from apache_beam.transforms.util import ReshufflePerKey
 from apache_beam.transforms.window import GlobalWindows
 from config.develop import print_debug,print_error,print_info
-
+from .functions import dead_letter_message
 from apache_beam.io.gcp.bigquery import (
     BigQueryDisposition,
     BigQueryWriteFn, 
@@ -20,7 +20,7 @@ from apache_beam.io.gcp.bigquery import (
     MAX_INSERT_RETRIES,
     DEFAULT_BATCH_BUFFERING_DURATION_LIMIT_SEC
     )
-
+from apache_beam.pvalue import TaggedOutput
 class my_BigQueryWriteFn(BigQueryWriteFn):
     def process(self, element):
         content = element[1]
@@ -75,7 +75,16 @@ class my_BigQueryWriteFn(BigQueryWriteFn):
             # The input is already batched per destination, flush the rows now.
             # batched_rows = data
             self._rows_buffer[destination].extend(data)
-            return self._flush_batch(destination)
+            try:
+                return self._flush_batch(destination)
+            except Exception as e:
+                print_error(e)
+                result = dead_letter_message(
+                destination= 'WriteToBigQuery', 
+                row = element,
+                error_message = e,
+                stage='my_BigQueryWriteFn')
+                return TaggedOutput('error',result)
 class _StreamToBigQuery(PTransform):
   def __init__(
       self,
@@ -188,8 +197,7 @@ class _StreamToBigQuery(PTransform):
         | 'FromHashableTableRef' >> beam.Map(_restore_table_ref)
         | 'StreamInsertRows' >> ParDo(
             bigquery_write_fn).with_outputs(
-                my_BigQueryWriteFn.FAILED_ROWS,
-                my_BigQueryWriteFn.FAILED_ROWS_WITH_ERRORS,
+                'error',
                 main='main'))
     
 class WriteToBigQuery(PTransform):

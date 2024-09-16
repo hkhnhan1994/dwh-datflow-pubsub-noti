@@ -145,7 +145,7 @@ def create_table_insert_data_pg(data,schema,
         cursor = conn.cursor()
         
         #test schema change
-        schema.update({'insert_timestamp': 'TIMESTAMP'})
+        schema.update({'extra_col4': 'TIMESTAMP'})
         # schema.update({'extra_col2': 'TEXT'})
         # schema.update({'extra_col3': 'TEXT'})
         # schema.update({'extra_col4': 'TEXT'})
@@ -166,7 +166,7 @@ def create_table_insert_data_pg(data,schema,
             # Extract column names
             columns = ', '.join(data.columns).lower()
             #test schema change
-            columns = columns+ ', insert_timestamp'
+            columns = columns+ ', extra_col4'
             # columns = columns+ ', extra_col2'
             # columns = columns+ ', extra_col3'
             # columns = columns+ ', extra_col4'
