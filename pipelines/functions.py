@@ -58,7 +58,7 @@ class merge_schema(beam.DoFn):
             # Identify items in _ex_schema that are not in _cur_schema   
             diff_list = [item for item in _ex_schema if item['name'] not in dict_cur_schema]
             # Identify items in _cur_schema that are not in _ex_schema   
-            diff_list_but_no_update_schema = [item for item in _cur_schema if item['name'] not in dict_cur_schema]
+            diff_list_but_no_update_schema = [item for item in _cur_schema if item['name'] not in dict_ex_schema]
             is_new_table = False if len(_cur_schema) >0 else True
             if is_new_table is False:
                 if bool(diff_list):

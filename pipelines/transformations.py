@@ -155,16 +155,16 @@ class write_to_BQ(beam.PTransform):
                 # kms_key,
             )
         )
-        get_errors = (to_BQ.failed_rows_with_errors
-        | 'Get Errors' >> beam.Map(lambda e: ('error',{
-                "destination": e[0],
-                "row": json.dumps(e[1],indent=4,default=str),
-                "error_message": e[2][0]['message'],
-                "stage": "write to BQ",
-                "timestamp":(datetime.datetime.now(datetime.timezone.utc))
-                }))
-        )
-        return get_errors
+        # get_errors = (to_BQ.failed_rows_with_errors
+        # | 'Get Errors' >> beam.Map(lambda e: ('error',{
+        #         "destination": e[0],
+        #         "row": json.dumps(e[1],indent=4,default=str),
+        #         "error_message": e[2][0]['message'],
+        #         "stage": "write to BQ",
+        #         "timestamp":(datetime.datetime.now(datetime.timezone.utc))
+        #         }))
+        # )
+        return to_BQ
 class map_new_data_to_bq_schema(beam.PTransform):
     """Fill null data if having any schema changes.
     
