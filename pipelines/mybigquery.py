@@ -75,16 +75,8 @@ class my_BigQueryWriteFn(BigQueryWriteFn):
             # The input is already batched per destination, flush the rows now.
             # batched_rows = data
             self._rows_buffer[destination].extend(data)
-            try:
-                return self._flush_batch(destination)
-            except Exception as e:
-                print_error(e)
-                result = dead_letter_message(
-                destination= 'WriteToBigQuery', 
-                row = element,
-                error_message = e,
-                stage='my_BigQueryWriteFn')
-                return TaggedOutput('error',result)
+            return self._flush_batch(destination)
+            
 class _StreamToBigQuery(PTransform):
   def __init__(
       self,
@@ -196,9 +188,7 @@ class _StreamToBigQuery(PTransform):
         tagged_data
         | 'FromHashableTableRef' >> beam.Map(_restore_table_ref)
         | 'StreamInsertRows' >> ParDo(
-            bigquery_write_fn).with_outputs(
-                'error',
-                main='main'))
+            bigquery_write_fn).with_exception_handling())
     
 class WriteToBigQuery(PTransform):
   """Write data to BigQuery.
@@ -248,7 +238,7 @@ class WriteToBigQuery(PTransform):
   get_dict_table_schema = staticmethod(bigquery_tools.get_dict_table_schema)
 
   def expand(self, pcoll):
-    outputs = pcoll | _StreamToBigQuery(
+    outputs, error = pcoll | _StreamToBigQuery(
         schema=self.schema,
         batch_size=self.batch_size,
         create_disposition=self.create_disposition,
@@ -263,9 +253,9 @@ class WriteToBigQuery(PTransform):
         max_insert_payload_size=self._max_insert_payload_size,
         triggering_frequency = self.triggering_frequency
         )
-
-    return WriteResult(
-        method='STREAMING_INSERTS',
-        failed_rows=outputs[my_BigQueryWriteFn.FAILED_ROWS],
-        failed_rows_with_errors=outputs[
-            my_BigQueryWriteFn.FAILED_ROWS_WITH_ERRORS])
+    # return WriteResult(
+    #     method='STREAMING_INSERTS',
+    #     failed_rows=outputs[my_BigQueryWriteFn.FAILED_ROWS],
+    #     failed_rows_with_errors=outputs[
+    #         my_BigQueryWriteFn.FAILED_ROWS_WITH_ERRORS])
+    return outputs, error

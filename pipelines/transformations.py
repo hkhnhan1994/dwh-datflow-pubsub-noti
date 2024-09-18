@@ -137,7 +137,7 @@ class write_to_BQ(beam.PTransform):
     def __init__(self):
         super().__init__()
     def expand(self, pcoll):
-        to_BQ =(
+        to_BQ, error =(
             pcoll                 
             # | "Re-window" >> beam.WindowInto(GlobalWindows())
             |WriteToBigQuery(
@@ -155,6 +155,13 @@ class write_to_BQ(beam.PTransform):
                 # kms_key,
             )
         )
+        handler_error = (
+                 error|beam.Map(lambda x: dead_letter_message(
+                destination= 'WriteToBigQuery', 
+                row = x,
+                error_message = "WriteToBigQuery error",
+                stage='_StreamToBigQuery')  )
+         )
         # get_errors = (to_BQ.failed_rows_with_errors
         # | 'Get Errors' >> beam.Map(lambda e: ('error',{
         #         "destination": e[0],
@@ -164,7 +171,7 @@ class write_to_BQ(beam.PTransform):
         #         "timestamp":(datetime.datetime.now(datetime.timezone.utc))
         #         }))
         # )
-        return to_BQ
+        return to_BQ, handler_error
 class map_new_data_to_bq_schema(beam.PTransform):
     """Fill null data if having any schema changes.
     
