@@ -58,18 +58,19 @@ def run(beam_options):
             data_processing_error
             |"bound windows errors data_processing" >> beam.WindowInto(FixedWindows(3))
         )
-        to_BQ = (
+        to_BQ, to_BQ_error = (
             data_processing
             |beam.Reshuffle()
             |write_to_BQ()
         )
         to_BQ_error_windows = (
-            to_BQ.error
+            to_BQ_error
             |"bound windows bq error" >> beam.WindowInto(FixedWindows(3))
         )
         errors =(
             (to_BQ_error_windows,data_processing_error_windows,schema_error_windows,data_error_windows )
             | write_error_to_alert(dead_letter) 
-        ) 
+        )
+        
   
         
