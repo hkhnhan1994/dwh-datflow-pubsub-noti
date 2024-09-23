@@ -539,7 +539,7 @@ class avro_processing(beam.DoFn):
         return data
     def _convert_data(self,value):
         if isinstance(value, datetime.datetime):
-            return value
+            return value.strftime('%Y-%m-%d %H:%M:%S.%f %Z')
         elif isinstance(value,list):
             return str(value)
         else: return value

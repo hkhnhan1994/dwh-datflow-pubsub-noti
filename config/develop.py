@@ -1,24 +1,25 @@
 """Configuration of the dataflow."""
 
 beam_config={
-    "job_name": "cmd-stream1",
+    "job_name": "cmd-stream",
     "staging_location": "gs://test_bucket_upvn/datastream-postgres/Beam-pubsub/staging",
     "temp_location": "gs://test_bucket_upvn/datastream-postgres/Beam-pubsub/temp",
     "project": "pj-bu-dw-data-sbx",
     "region": "europe-west1",
-    "max_num_workers": 30,
-    "max_cache_memory_usage_mb": 512,
-    "number_of_worker_harness_threads": 6,
-    "experiments":"no_use_multiple_sdk_containers",
+    "max_num_workers": 20,
+    "max_cache_memory_usage_mb": 8096,
+    # "number_of_worker_harness_threads": 4,
+    "experiments":["no_use_multiple_sdk_containers","enable_data_sampling"],
     "num_workers": 1,
     "worker_region": 'europe-west1',
-    "machine_type": 'n1-standard-1',
+    "machine_type": 'n2-highmem-2',
     "disk_size_gb": 10,
     "runner": "DataflowRunner", # DirectRunner DataflowRunner
     "setup_file": './setup.py',
     "save_main_session" : True,
     "streaming": True,
     "autoscaling_algorithm": "THROUGHPUT_BASED",
+    "prebuild_sdk_container_engine": "cloud_build"
 
 }
 pubsub_config={
