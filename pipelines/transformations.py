@@ -137,14 +137,15 @@ class write_to_BQ(beam.PTransform):
     def __init__(self):
         super().__init__()
     def expand(self, pcoll):
-        to_BQ, error =(
+        to_BQ =(
             pcoll                 
-            # | "Re-window" >> beam.WindowInto(GlobalWindows())
             |WriteToBigQuery(
                 write_disposition='WRITE_APPEND',
                 create_disposition='CREATE_NEVER',  
                 insert_retry_strategy='RETRY_NEVER',
-                with_auto_sharding=True,
+                with_auto_sharding=False,
+                # triggering_frequency=1.0,
+                # batch_size=5000,
                 # additional_bq_parameters={
                 #     'timePartitioning': 
                 #         {
@@ -155,23 +156,17 @@ class write_to_BQ(beam.PTransform):
                 # kms_key,
             )
         )
-        handler_error = (
-                 error|beam.Map(lambda x: dead_letter_message(
-                destination= 'WriteToBigQuery', 
-                row = x,
-                error_message = "WriteToBigQuery error",
-                stage='_StreamToBigQuery')  )
-         )
-        # get_errors = (to_BQ.failed_rows_with_errors
-        # | 'Get Errors' >> beam.Map(lambda e: ('error',{
-        #         "destination": e[0],
-        #         "row": json.dumps(e[1],indent=4,default=str),
-        #         "error_message": e[2][0]['message'],
-        #         "stage": "write to BQ",
-        #         "timestamp":(datetime.datetime.now(datetime.timezone.utc))
-        #         }))
-        # )
-        return to_BQ, handler_error
+        
+        get_errors = (
+            to_BQ.failed_rows_with_errors
+            | 'Get Errors' >> beam.Map(lambda e: dead_letter_message(
+                destination = e[0],
+                row= json.dumps(e[1],indent=4,default=str),
+                error_message =  e[2][0]['message'],
+                stage = "write to BQ",
+            ))
+        )
+        return get_errors
 class map_new_data_to_bq_schema(beam.PTransform):
     """Fill null data if having any schema changes.
     
@@ -226,8 +221,7 @@ class map_new_data_to_bq_schema(beam.PTransform):
             # |"error w2" >> beam.WindowInto(FixedWindows(3))
             |beam.Flatten()
         )
-        return fill_null.data, error
-        
+        return fill_null.data, error      
 class write_error_to_alert(beam.PTransform):
     """Ptransform to write error to pubsub and Bigquery channels."""
     def __init__(self, config): 
@@ -241,7 +235,7 @@ class write_error_to_alert(beam.PTransform):
             del data['row']
             return data
         flatten_errors = ( pcoll 
-                          |"flatten error" >> beam.Flatten()
+                        #   |"flatten error" >> beam.Flatten()
                           |beam.Map(lambda x: x[-1])
                         #   |beam.FlatMapTuple(lambda x: x)
                         #   |beam.Map(print_debug)

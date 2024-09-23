@@ -17,23 +17,23 @@ from apache_beam.io.gcp.bigquery import (
     BigQueryWriteFn, 
     WriteResult,
     MAX_INSERT_PAYLOAD_SIZE, 
-    MAX_INSERT_RETRIES,
-    DEFAULT_BATCH_BUFFERING_DURATION_LIMIT_SEC
+    DEFAULT_BATCH_BUFFERING_DURATION_LIMIT_SEC,
+    DEFAULT_SHARDS_PER_DESTINATION,
+    MAX_INSERT_RETRIES
     )
 from apache_beam.pvalue import TaggedOutput
+import json
 class my_BigQueryWriteFn(BigQueryWriteFn):
     def process(self, element):
         content = element[1]
-        schema = content[-1][0]['bq_schema']['schema']
-        data = [(ele[0]['data'],ele[1]) for ele in content]
         destination = bigquery_tools.get_hashable_destination(element[0])
         # schema = self.schema
-        self._create_table_if_needed(
-            bigquery_tools.parse_table_reference(destination), schema)
         if not self.with_batched_input:
-            print_debug("not auto sharding")
+            self._create_table_if_needed(
+            bigquery_tools.parse_table_reference(destination), content[0]['bq_schema']['schema'])
+            # print_debug("not auto sharding")
             # row_and_insert_id = element[1]
-            row_and_insert_id = (id,data)
+            row_and_insert_id = (content[0]['data'],content[1])
             row_byte_size = get_deep_size(row_and_insert_id)
 
             # send large rows that exceed BigQuery insert limits to DLQ
@@ -43,6 +43,7 @@ class my_BigQueryWriteFn(BigQueryWriteFn):
                 error = (
                     f"Received row with size {row_mb_size}MB that exceeds "
                     f"the maximum insert payload size set ({max_mb_size}MB).")
+                print_error(error)
                 return [
                     pvalue.TaggedOutput(
                         my_BigQueryWriteFn.FAILED_ROWS_WITH_ERRORS,
@@ -53,7 +54,7 @@ class my_BigQueryWriteFn(BigQueryWriteFn):
                         GlobalWindows.windowed_value(
                             (destination, row_and_insert_id[0])))
                 ]
-
+                
             # Flush current batch first if adding this row will exceed our limits
             # limits: byte size; number of rows
             if ((self._destination_buffer_byte_size[destination] + row_byte_size >
@@ -74,9 +75,13 @@ class my_BigQueryWriteFn(BigQueryWriteFn):
         else:
             # The input is already batched per destination, flush the rows now.
             # batched_rows = data
+            schema = content[-1][0]['bq_schema']['schema']
+            data = [(ele[0]['data'],ele[1]) for ele in content]
+            self._create_table_if_needed(
+            bigquery_tools.parse_table_reference(destination), schema)
             self._rows_buffer[destination].extend(data)
             return self._flush_batch(destination)
-            
+
 class _StreamToBigQuery(PTransform):
   def __init__(
       self,
@@ -93,7 +98,9 @@ class _StreamToBigQuery(PTransform):
       with_auto_sharding,
       test_client=None,
       max_retries=None,
-      max_insert_payload_size=MAX_INSERT_PAYLOAD_SIZE):
+      max_insert_payload_size=MAX_INSERT_PAYLOAD_SIZE,
+      num_streaming_keys = DEFAULT_SHARDS_PER_DESTINATION,
+      ):
     self.schema = schema
     self.batch_size = batch_size
     self.create_disposition = create_disposition
@@ -108,6 +115,7 @@ class _StreamToBigQuery(PTransform):
     self.max_retries = max_retries or MAX_INSERT_RETRIES
     self._max_insert_payload_size = max_insert_payload_size
     self.triggering_frequency = triggering_frequency
+    self._num_streaming_keys = num_streaming_keys
   class InsertIdPrefixFn(DoFn):
     def start_bundle(self):
       self.prefix = str(uuid.uuid4())
@@ -166,7 +174,10 @@ class _StreamToBigQuery(PTransform):
           tagged_data
           | 'WithFixedSharding' >> beam.Map(_add_random_shard)
           | 'CommitInsertIds' >> ReshufflePerKey()
-          | 'DropShard' >> beam.Map(lambda kv: (kv[0][0], kv[1])))
+          | 'DropShard' >> beam.Map(lambda kv: (kv[0][0], kv[1]))
+        #   | beam.Map(print_debug)
+          )
+          
     else:
       # Auto-sharding is achieved via GroupIntoBatches.WithShardedKey
       # transform which shards, groups and at the same time batches the table
@@ -188,8 +199,11 @@ class _StreamToBigQuery(PTransform):
         tagged_data
         | 'FromHashableTableRef' >> beam.Map(_restore_table_ref)
         | 'StreamInsertRows' >> ParDo(
-            bigquery_write_fn).with_exception_handling())
-    
+            bigquery_write_fn).with_outputs(
+                BigQueryWriteFn.FAILED_ROWS,
+                BigQueryWriteFn.FAILED_ROWS_WITH_ERRORS,
+                main='main')
+    )
 class WriteToBigQuery(PTransform):
   """Write data to BigQuery.
 
@@ -213,7 +227,8 @@ class WriteToBigQuery(PTransform):
       with_auto_sharding=False,
       ignore_unknown_columns=False,
       max_insert_payload_size=MAX_INSERT_PAYLOAD_SIZE,
-      triggering_frequency = None
+      triggering_frequency = None,
+      num_streaming_keys = DEFAULT_SHARDS_PER_DESTINATION
       ):
     self.create_disposition = BigQueryDisposition.validate_create(
         create_disposition)
@@ -230,6 +245,7 @@ class WriteToBigQuery(PTransform):
     self._ignore_unknown_columns = ignore_unknown_columns
     self._max_insert_payload_size = max_insert_payload_size
     self.triggering_frequency = triggering_frequency
+    self.num_streaming_keys=num_streaming_keys
   # Dict/schema methods were moved to bigquery_tools, but keep references
   # here for backward compatibility.
   get_table_schema_from_string = \
@@ -238,7 +254,7 @@ class WriteToBigQuery(PTransform):
   get_dict_table_schema = staticmethod(bigquery_tools.get_dict_table_schema)
 
   def expand(self, pcoll):
-    outputs, error = pcoll | _StreamToBigQuery(
+    outputs = pcoll | _StreamToBigQuery(
         schema=self.schema,
         batch_size=self.batch_size,
         create_disposition=self.create_disposition,
@@ -251,11 +267,12 @@ class WriteToBigQuery(PTransform):
         with_auto_sharding=self.with_auto_sharding,
         test_client=self.test_client,
         max_insert_payload_size=self._max_insert_payload_size,
-        triggering_frequency = self.triggering_frequency
+        triggering_frequency = self.triggering_frequency,
+        num_streaming_keys=self.num_streaming_keys,
         )
-    # return WriteResult(
-    #     method='STREAMING_INSERTS',
-    #     failed_rows=outputs[my_BigQueryWriteFn.FAILED_ROWS],
-    #     failed_rows_with_errors=outputs[
-    #         my_BigQueryWriteFn.FAILED_ROWS_WITH_ERRORS])
-    return outputs, error
+    return WriteResult(
+        method='STREAMING_INSERTS',
+        failed_rows=outputs[my_BigQueryWriteFn.FAILED_ROWS],
+        failed_rows_with_errors=outputs[
+            my_BigQueryWriteFn.FAILED_ROWS_WITH_ERRORS])
+    # return outputs
