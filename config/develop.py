@@ -1,7 +1,7 @@
 """Configuration of the dataflow."""
 
 beam_config={
-    "job_name": "cmd-stream",
+    "job_name": "cmd-stream1",
     "staging_location": "gs://test_bucket_upvn/datastream-postgres/Beam-pubsub/staging",
     "temp_location": "gs://test_bucket_upvn/datastream-postgres/Beam-pubsub/temp",
     "project": "pj-bu-dw-data-sbx",
@@ -52,7 +52,7 @@ dead_letter = {
     {
         "table_id": "error_log_table",
         "project": "pj-bu-dw-data-sbx",
-        "dataset": "lake_view_cmd",
+        "dataset": "dev_lake_view_cmd",
         "schema":{'fields': [
                 {'name': 'destination', 'type': 'STRING', 'mode': 'NULLABLE'},
                 {'name': 'row', 'type': 'STRING', 'mode': 'NULLABLE'},
