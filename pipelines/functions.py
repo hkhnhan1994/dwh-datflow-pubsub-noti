@@ -335,7 +335,6 @@ class avro_schema_to_bq_schema(beam.DoFn):
         "long": "INT64",
         "bytes": "BYTES",
         "enum": "STRING",
-        # logical types
         "decimal": "FLOAT",
         "uuid": "STRING",
         "date": "TIMESTAMP",
@@ -344,7 +343,55 @@ class avro_schema_to_bq_schema(beam.DoFn):
         "timestamp-millis": "TIMESTAMP",
         "timestamp-micros": "TIMESTAMP",
         "varchar": "STRING",
-        "number": "STRING"
+        "number": "STRING",
+        "serial": "INT64",
+        "bigserial": "INT64",
+        "int2": "INT64",
+        "int4": "INT64",
+        "int8": "INT64",
+        "numeric": "NUMERIC",
+        "numeric_without_prec_scale": "STRING",
+        "float4": "FLOAT64",
+        "float8": "FLOAT64",
+        "money": "FLOAT64",
+        "bytea": "BYTES",
+        "varchar": "STRING",
+        "bpchar": "STRING",
+        "text": "STRING",
+        "cidr": "STRING",
+        "inet": "STRING",
+        "macaddr": "STRING",
+        "macaddr8": "STRING",
+        "bit": "STRING",
+        "uuid": "STRING",
+        "xml": "STRING",
+        "json": "JSON",
+        "jsonb": "JSON",
+        "tsvector": "STRING",
+        "tsquery": "STRING",
+        "timestamp": "TIMESTAMP",
+        "timestamptz": "TIMESTAMP",
+        "date": "DATE",
+        "time": "TIME",
+        "timetz": "TIME",
+        "interval": "STRING",
+        "point": "STRING",
+        "line": "STRING",
+        "lseg": "STRING",
+        "box": "STRING",
+        "path": "STRING",
+        "polygon": "STRING",
+        "circle": "STRING",
+        "geometry": "JSON",
+        "array": "STRING",
+        "composite": "STRING",
+        "range": "STRING",
+        "oid": "INT64",
+        "pg_lsn": "STRING",
+        "bool": "BOOL",
+        "char": "STRING",
+        "name": "STRING",
+        "sl_timestamp": "TIMESTAMP"
         }
     def _should_ignore(self,field, parent):
         full_name = f"{parent}.{field}" if parent else field
@@ -449,7 +496,7 @@ class avro_schema_to_bq_schema(beam.DoFn):
                     )
             else:
                 # simple array
-                field_type = self.AVRO_TO_BIGQUERY_TYPES[avro_type["items"]]
+                field_type = self.AVRO_TO_BIGQUERY_TYPES[avro_type["type"]]
         elif avro_type["type"] == "enum":
             field_type = self.AVRO_TO_BIGQUERY_TYPES[avro_type["type"]]
         elif avro_type["type"] == "map":
@@ -492,6 +539,7 @@ class avro_schema_to_bq_schema(beam.DoFn):
             "name": avro_field.get("name"),
             "type": field_type,
             "mode": mode,
+            "fields": fields,
         }
     def key_value_mapping(self,data):
         return (data['name'], data['fields'],data['path'])

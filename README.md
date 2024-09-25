@@ -32,7 +32,7 @@ gcloud storage buckets notifications create gs://[bucket name] --topic=projects/
 **Example:**
 
 ```bash
-gcloud storage buckets notifications create gs://test_bucket_upvn --topic=projects/pj-bu-dw-data-sbx/topics/gcs_noti -p datastream-postgres/datastream/cmd_test
+gcloud storage buckets notifications create gs://upg-data-sbx-eu-datastream-documents --topic=projects/pj-bu-dw-data-sbx/topics/gcs_noti -p datastream-postgres/datastream/cmd_test
 ```
 
 ### Configure Pipeline Settings

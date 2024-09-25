@@ -3,175 +3,35 @@ data = {
   "name": "public_dwh_natural_person_payment_accounts",
   "fields": [
     {
-      "name": "ingestion_meta_data_processing_timestamp",
       "type": [
         "null",
         {
-          "type": "long",
-          "logicalType": "timestamp-micros"
+          "type": "record",
+          "name": "multidimensionalArray_tags",
+          "fields": [
+            {
+              "type": [
+                "null",
+                {
+                  "type": "array",
+                  "items": "multidimensionalArray_tags"
+                }
+              ],
+              "name": "nestedArray",
+              "default": "null"
+            },
+            {
+              "type": [
+                "null",
+                "string"
+              ],
+              "name": "elementValue",
+              "default": "null"
+            }
+          ]
         }
-      ]
-    },
-    {
-      "name": "ingestion_meta_data_uuid",
-      "type": "string"
-    },
-    {
-      "name": "ingestion_meta_data_read_timestamp",
-      "type": {
-        "type": "long",
-        "logicalType": "timestamp-millis"
-      }
-    },
-    {
-      "name": "ingestion_meta_data_source_timestamp",
-      "type": {
-        "type": "long",
-        "logicalType": "timestamp-millis"
-      }
-    },
-    {
-      "name": "ingestion_meta_data_object",
-      "type": "string"
-    },
-    {
-      "name": "ingestion_meta_data_read_method",
-      "type": "string"
-    },
-    {
-      "name": "source_metadata_schema",
-      "type": "string"
-    },
-    {
-      "name": "source_metadata_table",
-      "type": "string"
-    },
-    {
-      "name": "source_metadata_is_deleted",
-      "type": [
-        "null",
-        "boolean"
-      ]
-    },
-    {
-      "name": "source_metadata_change_type",
-      "type": [
-        "null",
-        "string"
-      ]
-    },
-    {
-      "name": "source_metadata_primary_keys",
-      "type": [
-        "null",
-        {
-          "type": "array",
-          "items": "string"
-        }
-      ]
-    },
-    {
-      "name": "id",
-      "type": [
-        "null",
-        "int"
-      ]
-    },
-    {
-      "name": "natural_person_public_identifier",
-      "type": [
-        "null",
-        "string"
-      ]
-    },
-    {
-      "name": "payment_account_public_identifier",
-      "type": [
-        "null",
-        "string"
-      ]
-    },
-    {
-      "name": "role",
-      "type": [
-        "null",
-        "string"
-      ]
-    },
-    {
-      "name": "started_timestamp",
-      "type": [
-        "null",
-        {
-          "type": "long",
-          "logicalType": "timestamp-micros"
-        }
-      ]
-    },
-    {
-      "name": "ended_timestamp",
-      "type": [
-        "null",
-        {
-          "type": "long",
-          "logicalType": "timestamp-micros"
-        }
-      ]
-    },
-    {
-      "name": "public_identifier",
-      "type": [
-        "null",
-        "string"
-      ]
-    },
-    {
-      "name": "creation_timestamp",
-      "type": [
-        "null",
-        {
-          "type": "long",
-          "logicalType": "timestamp-micros"
-        }
-      ]
-    },
-    {
-      "name": "last_update_timestamp",
-      "type": [
-        "null",
-        {
-          "type": "long",
-          "logicalType": "timestamp-micros"
-        }
-      ]
-    },
-    {
-      "name": "extra_col",
-      "type": [
-        "null",
-        {
-          "type": "long",
-          "logicalType": "timestamp-micros"
-        }
-      ]
-    },
-    {
-      "name": "ingestion_meta_data_gcs_path",
-      "type": [
-        "null",
-        {
-          "type": "string"
-        }
-      ]
-    },
-    {
-      "name": "row_hash",
-      "type": [
-        "null",
-        {
-          "type": "string"
-        }
-      ]
+      ],
+      "name": "tags"
     }
   ]
 }
@@ -187,7 +47,6 @@ class convert():
                 "long": "INT64",
                 "bytes": "BYTES",
                 "enum": "STRING",
-                # logical types
                 "decimal": "FLOAT",
                 "uuid": "STRING",
                 "date": "TIMESTAMP",
@@ -196,7 +55,55 @@ class convert():
                 "timestamp-millis": "TIMESTAMP",
                 "timestamp-micros": "TIMESTAMP",
                 "varchar": "STRING",
-                "number": "STRING"
+                "number": "STRING",
+                "serial": "INT64",
+                "bigserial": "INT64",
+                "int2": "INT64",
+                "int4": "INT64",
+                "int8": "INT64",
+                "numeric": "NUMERIC",
+                "numeric_without_prec_scale": "STRING",
+                "float4": "FLOAT64",
+                "float8": "FLOAT64",
+                "money": "FLOAT64",
+                "bytea": "BYTES",
+                "varchar": "STRING",
+                "bpchar": "STRING",
+                "text": "STRING",
+                "cidr": "STRING",
+                "inet": "STRING",
+                "macaddr": "STRING",
+                "macaddr8": "STRING",
+                "bit": "STRING",
+                "uuid": "STRING",
+                "xml": "STRING",
+                "json": "JSON",
+                "jsonb": "JSON",
+                "tsvector": "STRING",
+                "tsquery": "STRING",
+                "timestamp": "TIMESTAMP",
+                "timestamptz": "TIMESTAMP",
+                "date": "DATE",
+                "time": "TIME",
+                "timetz": "TIME",
+                "interval": "STRING",
+                "point": "STRING",
+                "line": "STRING",
+                "lseg": "STRING",
+                "box": "STRING",
+                "path": "STRING",
+                "polygon": "STRING",
+                "circle": "STRING",
+                "geometry": "JSON",
+                "array": "STRING",
+                "composite": "STRING",
+                "range": "STRING",
+                "oid": "INT64",
+                "pg_lsn": "STRING",
+                "bool": "BOOL",
+                "char": "STRING",
+                "name": "STRING",
+                "sl_timestamp": "TIMESTAMP"
                 }
     
     def _convert_type(self,avro_type):
@@ -264,7 +171,7 @@ class convert():
                     )
             else:
                 # simple array
-                field_type = self.AVRO_TO_BIGQUERY_TYPES[avro_type["items"]]
+                field_type = self.AVRO_TO_BIGQUERY_TYPES[avro_type["type"]]
         elif avro_type["type"] == "enum":
             field_type = self.AVRO_TO_BIGQUERY_TYPES[avro_type["type"]]
         elif avro_type["type"] == "map":
@@ -307,6 +214,7 @@ class convert():
             "name": avro_field.get("name"),
             "type": field_type,
             "mode": mode,
+            "fields": fields
         }
     def key_value_mapping(self,data):
         return (data['name'], data['fields'])

@@ -72,7 +72,7 @@ dataset = [
 def read_bq(project,dataset,table_id,client):
     # print(f"reading data from GCP table {project}.{dataset}.{table_id}")
     query_job = client.query(
-        f"""select * from {project}.{dataset}.{table_id} limit 1000000"""
+        f"""select * from {project}.{dataset}.{table_id} limit 10000"""
         ) 
     rows = query_job.result().to_dataframe()
     # print(f"converted to df")
@@ -145,7 +145,7 @@ def create_table_insert_data_pg(data,schema,
         cursor = conn.cursor()
         
         #test schema change
-        schema.update({'extra_col6': 'TIMESTAMP'})
+        schema.update({'extra_col1': 'TIMESTAMP'})
         # schema.update({'extra_col2': 'TEXT'})
         # schema.update({'extra_col3': 'TEXT'})
         # schema.update({'extra_col4': 'TEXT'})
@@ -166,7 +166,7 @@ def create_table_insert_data_pg(data,schema,
             # Extract column names
             columns = ', '.join(data.columns).lower()
             #test schema change
-            columns = columns+ ', extra_col6'
+            columns = columns+ ', extra_col1'
             # columns = columns+ ', extra_col2'
             # columns = columns+ ', extra_col3'
             # columns = columns+ ', extra_col4'
