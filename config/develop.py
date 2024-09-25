@@ -13,7 +13,7 @@ beam_config={
     "num_workers": 1,
     "worker_region": 'europe-west1',
     "machine_type": 'n2-highmem-2',
-    "disk_size_gb": 10,
+    "disk_size_gb": 20,
     "runner": "DataflowRunner", # DirectRunner DataflowRunner
     "setup_file": './setup.py',
     "save_main_session" : True,
@@ -24,7 +24,7 @@ beam_config={
 }
 pubsub_config={
     "project": "pj-bu-dw-data-sbx",
-    "subscription": ["test1mess","test_sub"],  # test1mess test_sub gs_noti_dead_letter_sub
+    "subscription": ["test1mess","test_sub","upg-documents-sub"],  # test1mess test_sub gs_noti_dead_letter_sub
     "blob_name_prefix": "datastream-postgres/datastream/cmd_test",
     "bucket_name": "test_bucket_upvn",
     "topic_name": "gcs_noti"
@@ -40,10 +40,11 @@ bigquery_datalake ={
     "project": "pj-bu-dw-data-sbx",
     "region": "europe-west1",
     "dataset": {
-        "cmd_test":"lake_view_cmd",
-        "paci_test":"lake_view_paci"
+        "cmd_test":"dev_lake_view_cmd",
+        "paci_test":"dev_lake_view_paci",
+        "upg-data-sbx-eu-datastream-documents": "dev_btx_doc"
         },
-    "default_dataset": "lake_view_cmd"
+    "default_dataset": "unmap_datalake"
     
 }
 dead_letter = {
