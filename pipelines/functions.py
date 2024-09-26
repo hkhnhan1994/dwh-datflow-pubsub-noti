@@ -477,7 +477,7 @@ class avro_schema_to_bq_schema(beam.DoFn):
             field_type = "RECORD"
             fields = tuple(map(lambda f: self._convert_field(f), avro_type["fields"]))
         elif avro_type["type"] == "array":
-            mode =  "NULLABLE" #"REPEATED"
+            mode = "REPEATED"
             if "logicalType" in avro_type["items"]:
                 field_type = self.AVRO_TO_BIGQUERY_TYPES[
                     avro_type["items"]["logicalType"]
@@ -588,8 +588,8 @@ class avro_processing(beam.DoFn):
     def _convert_data(self,value):
         if isinstance(value, datetime.datetime):
             return value.strftime('%Y-%m-%d %H:%M:%S.%f %Z')
-        elif isinstance(value,list):
-            return str(value)
+        # elif isinstance(value,list):
+        #     return str(value)
         else: return value
     def flatten_data(self,data):
         flattened_data = {}

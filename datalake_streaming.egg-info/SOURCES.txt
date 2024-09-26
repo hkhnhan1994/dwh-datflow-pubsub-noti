@@ -1,0 +1,16 @@
+README.md
+setup.py
+config/__init__.py
+config/develop.py
+datalake_streaming.egg-info/PKG-INFO
+datalake_streaming.egg-info/SOURCES.txt
+datalake_streaming.egg-info/dependency_links.txt
+datalake_streaming.egg-info/requires.txt
+datalake_streaming.egg-info/top_level.txt
+pipelines/__init__.py
+pipelines/functions.py
+pipelines/mybigquery.py
+pipelines/pipeline.py
+pipelines/transformations.py
+test/test_avro.py
+test/test_function.py

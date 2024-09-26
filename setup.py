@@ -3,8 +3,8 @@
 
 from setuptools import setup, find_packages
 setup(
-    name='arvo',
-    version='0.0.1',
+    name='datalake streaming',
+    version='0.0.2',
     install_requires=[
         'PyYAML',
         # 'unicodecsv==0.14.1'
