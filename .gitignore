@@ -3,3 +3,4 @@ arvo.egg-info/
 etl.egg-info/
 */__pycache__/
 __pycache__/
+datalake_streaming.egg-info/
