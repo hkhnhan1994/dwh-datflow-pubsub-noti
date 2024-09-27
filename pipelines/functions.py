@@ -68,7 +68,7 @@ class merge_schema(beam.DoFn):
                     print_info('table {} deleted fields: {}'.format(merge_schema['datalake_maping']['table'],diff_list_but_no_update_schema))
                 else:  print_debug('schema of table {} does not change while checking removed fields'.format(merge_schema['datalake_maping']['table']))
             else : 
-                print_info('found new table {}'.format(merge_schema['datalake_maping']['table']))
+                print_info('found new table {} in source'.format(merge_schema['datalake_maping']['table']))
             yield ({'schema':merged_schema, 'is_schema_changes':diff_list,'is_new_table':is_new_table,'datalake_maping': merge_schema['datalake_maping']})      
         except Exception as e:
             print_error('data {} --> get error {}'.format(merge_schema,e))
@@ -140,7 +140,7 @@ class read_bq_schema(beam.DoFn):
         except Exception as e:
             try:
                 # print_error(e)
-                print_info("not found table {}.{}.{}".format(bq_pars.get('project'),dataset_id,schema['name']))
+                print_info("not found table {}.{}.{} on BQ".format(bq_pars.get('project'),dataset_id,schema['name']))
                 print_debug({"bq_schema":[], "avro_schema":schema, "datalake_maping":datalake_maping})
                 yield ({"bq_schema":[], "avro_schema":schema, "datalake_maping":datalake_maping})
             except Exception as e:
