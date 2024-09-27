@@ -205,7 +205,8 @@ class create_table(beam.DoFn):
                     table_id = schema['datalake_maping']['table'],
                     schema = bq_schema,
                     create_disposition= 'CREATE_IF_NEEDED',
-                    write_disposition= 'WRITE_EMPTY'
+                    write_disposition= 'WRITE_EMPTY',
+                    additional_create_parameters = schema['datalake_maping']['bq_pars'].get('additional_create_parameters')
                 )
                 print_info('new table {}.{}.{} has been created'.format(
                     schema['datalake_maping']['project'],

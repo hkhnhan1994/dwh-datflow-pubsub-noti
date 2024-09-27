@@ -147,13 +147,6 @@ class write_to_BQ(beam.PTransform):
                 with_auto_sharding=False,
                 # triggering_frequency=1.0,
                 # batch_size=5000,
-                # additional_bq_parameters={
-                #     'timePartitioning': 
-                #         {
-                #             'type': 'HOUR',
-                #             'field': 'ingestion_meta_data_processing_timestamp'
-                #         }
-                # }
                 # kms_key,
             )
         )

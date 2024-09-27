@@ -11,14 +11,14 @@
 9,IntermediateAuthorizationService,56971
 10,Organisation,414
 11,Person,504
-12,PersonAttribute,999325
+12,PersonAttribute,500000
 13,PersonOrganisationLink,744
 14,PersonOrganisationRole,198642
 15,PersonUsageTransactions,376286
 16,RegistrationLevel,5
 17,Roles,3
 18,Service,7
-19,ServiceAuthorization_1_13,884686
+19,ServiceAuthorization_1_13,500000
 20,ServiceProvider,806
 21,Urn,20
 22,DA_relation,1333
@@ -38,7 +38,7 @@
 36,tblKlantAbonnementSysAttr,48410
 37,tblKlantBankMachtiging,247
 38,tblKlantDienst,248
-39,tblKlantSysAttr,1410743
+39,tblKlantSysAttr,500000
 40,tblLand,1
 41,tblOrganisatie,8
 42,tblSysteemAttribuut,1
