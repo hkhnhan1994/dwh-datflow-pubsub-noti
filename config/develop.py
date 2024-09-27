@@ -36,6 +36,10 @@ cdc_ignore_fields = [
     'source_metadata.tx_id',
     'source_metadata.lsn',
 ]
+cdc_complex_fields = [ #complex fields have to be converted to bigquery data type
+    "source_metadata",
+    "payload"
+]
 bigquery_datalake ={
     "project": "pj-bu-dw-data-sbx",
     "region": "europe-west1",

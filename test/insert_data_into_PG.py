@@ -72,7 +72,7 @@ dataset = [
 def read_bq(project,dataset,table_id,client):
     # print(f"reading data from GCP table {project}.{dataset}.{table_id}")
     query_job = client.query(
-        f"""select * from {project}.{dataset}.{table_id} limit 10000000"""
+        f"""select * from {project}.{dataset}.{table_id} limit 500000"""
         ) 
     rows = query_job.result().to_dataframe()
     # print(f"converted to df")

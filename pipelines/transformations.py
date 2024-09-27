@@ -74,8 +74,9 @@ class schema_processing(beam.PTransform):
             error -> dead_letter_message
             )
     """
-    def __init__(self,ignore_fields,bq_pars):
+    def __init__(self,ignore_fields, whitelist_complexfields_convert,bq_pars,):
             self.ignore_fields =ignore_fields
+            self.complexfields_convert = whitelist_complexfields_convert
             self.bq_pars = bq_pars
     def expand(self, pcoll):
         _schema = ( # data must be in Arvo format
@@ -84,7 +85,7 @@ class schema_processing(beam.PTransform):
             )
         to_bq_schema =(
             _schema.schema
-            |"schema processing" >> beam.ParDo(avro_schema_to_bq_schema(self.ignore_fields)).with_outputs('error', main='schema')
+            |"schema processing" >> beam.ParDo(avro_schema_to_bq_schema(self.ignore_fields, self.complexfields_convert)).with_outputs('error', main='schema')
         )
         read_from_bq = (
             to_bq_schema.schema
