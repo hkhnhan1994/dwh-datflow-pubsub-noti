@@ -321,8 +321,9 @@ class avro_schema_to_bq_schema(beam.DoFn):
             Result.error -> dead_letter_message
 
     """
-    def __init__(self, ignore_fields):
+    def __init__(self, ignore_fields, convert_columns):
         self.ignore_fields=ignore_fields
+        self.complex_converting_columns_whitelist = convert_columns
     # print_debug("schema process for table {}".format(data["name"]))
     def setup(self):
         self.AVRO_TO_BIGQUERY_TYPES = {
@@ -431,7 +432,7 @@ class avro_schema_to_bq_schema(beam.DoFn):
     def clean_unused_schema_fields(self, data):
         data["fields"] = self._process_fields(data["fields"])
         return data
-    def _convert_type(self,avro_type):
+    def _convert_type(self,avro_type, field_name):
             """
             Convert an Avro type to a BigQuery type
             :param avro_type: The Avro type
@@ -458,13 +459,13 @@ class avro_schema_to_bq_schema(beam.DoFn):
                     )
 
             if isinstance(avro_type, dict):
-                field_type, fields, mode = self._convert_complex_type(avro_type)
+                field_type, fields, mode = self._convert_complex_type(avro_type,field_name)
 
             else:
                 field_type = self.AVRO_TO_BIGQUERY_TYPES[avro_type]
 
             return field_type, mode, fields
-    def _convert_complex_type(self,avro_type):
+    def _convert_complex_type(self,avro_type,field_name):
         """
         Convert a Avro complex type to a BigQuery type
         :param avro_type: The Avro type
@@ -474,8 +475,10 @@ class avro_schema_to_bq_schema(beam.DoFn):
         mode = "NULLABLE"
 
         if avro_type["type"] == "record":
-            field_type = "RECORD"
-            fields = tuple(map(lambda f: self._convert_field(f), avro_type["fields"]))
+            if field_name in self.complex_converting_columns_whitelist:
+                field_type = "RECORD"
+                fields = tuple(map(lambda f: self._convert_field(f), avro_type["fields"]))
+            else: field_type = "STRING"
         elif avro_type["type"] == "array":
             mode = "REPEATED"
             if "logicalType" in avro_type["items"]:
@@ -531,9 +534,9 @@ class avro_schema_to_bq_schema(beam.DoFn):
         """
 
         if "logicalType" in avro_field:
-            field_type, mode, fields = self._convert_type(avro_field["logicalType"])
+            field_type, mode, fields = self._convert_type(avro_field["logicalType"],avro_field.get("name"))
         else:
-            field_type, mode, fields = self._convert_type(avro_field["type"])
+            field_type, mode, fields = self._convert_type(avro_field["type"],avro_field.get("name"))
 
         return {
             "name": avro_field.get("name"),
@@ -588,8 +591,8 @@ class avro_processing(beam.DoFn):
     def _convert_data(self,value):
         if isinstance(value, datetime.datetime):
             return value.strftime('%Y-%m-%d %H:%M:%S.%f %Z')
-        # elif isinstance(value,list):
-        #     return str(value)
+        elif isinstance(value,dict):
+            return str(value)
         else: return value
     def flatten_data(self,data):
         flattened_data = {}

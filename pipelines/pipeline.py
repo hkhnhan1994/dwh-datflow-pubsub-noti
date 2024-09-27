@@ -9,7 +9,7 @@ from .transformations import  (
     write_error_to_alert
 )
     
-from config.develop import cdc_ignore_fields, pubsub_config, bigquery_datalake, dead_letter
+from config.develop import cdc_ignore_fields, cdc_complex_fields, pubsub_config, bigquery_datalake, dead_letter
 from apache_beam.transforms.window import FixedWindows, GlobalWindows
 from config.develop import print_debug,print_error,print_info
 fix_windows = 3
@@ -36,7 +36,7 @@ def run(beam_options):
         )
         schema, schema_error = (
             read_file_path
-            |schema_processing(cdc_ignore_fields,bq_pars=bigquery_datalake)
+            |schema_processing(cdc_ignore_fields,cdc_complex_fields,bq_pars=bigquery_datalake)
             )
         schema_windows =(
             schema
