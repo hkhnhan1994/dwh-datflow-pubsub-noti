@@ -48,7 +48,14 @@ bigquery_datalake ={
         "paci_test":"dev_lake_view_paci",
         "upg-data-sbx-eu-datastream-documents": "dev_btx_doc"
         },
-    "default_dataset": "unmap_datalake"
+    "default_dataset": "unmap_datalake",
+    "additional_create_parameters":{
+                    'timePartitioning': 
+                        {
+                            'type': 'DAY',
+                            'field': 'ingestion_meta_data_processing_timestamp'
+                        }
+                }
     
 }
 dead_letter = {
