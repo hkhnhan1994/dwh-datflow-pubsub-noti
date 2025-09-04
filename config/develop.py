@@ -2,11 +2,11 @@
 
 beam_config={
     "job_name": "cmd-stream1",
-    "staging_location": "gs://test_bucket_upvn/datastream-postgres/Beam-pubsub/staging",
-    "temp_location": "gs://test_bucket_upvn/datastream-postgres/Beam-pubsub/temp",
-    "project": "pj-bu-dw-data-sbx",
+    "staging_location": "gs://justatestbucket123/datastream-postgres/Beam-pubsub/staging",
+    "temp_location": "gs://justatestbucket123/datastream-postgres/Beam-pubsub/temp",
+    "project": "halogen-parser-471115-i4",
     "region": "europe-west1",
-    "max_num_workers": 20,
+    "max_num_workers": 1,
     "max_cache_memory_usage_mb": 8096,
     # "number_of_worker_harness_threads": 4,
     "experiments":["no_use_multiple_sdk_containers","enable_data_sampling"],
@@ -23,11 +23,11 @@ beam_config={
 
 }
 pubsub_config={
-    "project": "pj-bu-dw-data-sbx",
-    "subscription": ["test1mess","test_sub","upg-documents-sub"],  # test1mess test_sub gs_noti_dead_letter_sub
-    "blob_name_prefix": "datastream-postgres/datastream/cmd_test",
-    "bucket_name": "test_bucket_upvn",
-    "topic_name": "gcs_noti"
+    "project": "halogen-parser-471115-i4",
+    "subscription": ["test_sub-sub"],  # test1mess test_sub gs_noti_dead_letter_sub
+    "blob_name_prefix": "datastream-postgres/datastream/",
+    "bucket_name": "justatestbucket123",
+    "topic_name": "test_sub"
 }
 cdc_ignore_fields = [
     'stream_name',
@@ -41,12 +41,10 @@ cdc_complex_fields = [ #complex fields have to be converted to bigquery data typ
     "payload"
 ]
 bigquery_datalake ={
-    "project": "pj-bu-dw-data-sbx",
+    "project": "halogen-parser-471115-i4",
     "region": "europe-west1",
     "dataset": {
-        "cmd_test":"dev_lake_view_cmd",
-        "paci_test":"dev_lake_view_paci",
-        "upg-data-sbx-eu-datastream-documents": "dev_btx_doc"
+        "postgres":"test_alloydb",
         },
     "default_dataset": "unmap_datalake",
     "additional_create_parameters":{
