@@ -1,0 +1,57 @@
+[
+  {
+    "mode": "NULLABLE",
+    "name": "PersonUsageTransactionId",
+    "type": "INTEGER"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "ServiceId",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "ServiceName",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "UserHostAddress",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "TransactionTime",
+    "type": "DATETIME"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "TransactionType",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "ServiceProviderName",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "EntityConcernedId",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "EntityConcernedSubId",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "PersonId",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "OrganisationName",
+    "type": "STRING"
+  }
+]

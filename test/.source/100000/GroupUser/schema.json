@@ -1,0 +1,32 @@
+[
+  {
+    "mode": "NULLABLE",
+    "name": "GroupUserId",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "GroupId",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "PersonOrganisationLinkId",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "CreationDate",
+    "type": "TIMESTAMP"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "LastServiceAuthorizationUse",
+    "type": "TIMESTAMP"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "LastChangedByPersonId",
+    "type": "STRING"
+  }
+]

@@ -1,0 +1,27 @@
+[
+  {
+    "mode": "NULLABLE",
+    "name": "PersonId",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "SourceUrnId",
+    "type": "INTEGER"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "AttributeUrnId",
+    "type": "INTEGER"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "VerifyDateUtc",
+    "type": "DATETIME"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "Value",
+    "type": "STRING"
+  }
+]

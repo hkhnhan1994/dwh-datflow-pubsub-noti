@@ -1,0 +1,17 @@
+[
+  {
+    "mode": "NULLABLE",
+    "name": "relationtype",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "relationrole",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "description",
+    "type": "STRING"
+  }
+]

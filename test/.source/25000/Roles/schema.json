@@ -1,0 +1,7 @@
+[
+  {
+    "mode": "NULLABLE",
+    "name": "Role",
+    "type": "STRING"
+  }
+]

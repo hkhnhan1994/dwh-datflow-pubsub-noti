@@ -5,12 +5,13 @@ from google.cloud import bigquery
 # import googleapiclient.discovery
 import io
 import json
-import psycopg2
+# import psycopg2
 import pandas as pd
 from tqdm import tqdm   
 import google.oauth2.credentials
 import googleapiclient.discovery
 import datetime
+import pathlib
 def get_credentials(service_account):
     """
     Return a credential from a service account.
@@ -69,10 +70,10 @@ dataset = [
            ]
 # table_id = "customers"
     
-def read_bq(project,dataset,table_id,client):
-    # print(f"reading data from GCP table {project}.{dataset}.{table_id}")
+def read_bq(project,dataset,table_id,client, data_limit):
+    print(f"reading data from GCP table {project}.{dataset}.{table_id}")
     query_job = client.query(
-        f"""select * from {project}.{dataset}.{table_id} limit 250000"""
+        f"""select * from {project}.{dataset}.{table_id} limit {data_limit}"""
         ) 
     rows = query_job.result().to_dataframe()
     # print(f"converted to df")
@@ -80,6 +81,10 @@ def read_bq(project,dataset,table_id,client):
     f = io.StringIO("")
     client.schema_to_json(schema.schema,f)
     # print('get schema')
+    dir = pathlib.Path(f'.source/{data_limit}/{table_id}')
+    dir.mkdir(parents=True,exist_ok=True)
+    rows.to_json(dir/'data.json')
+    client.schema_to_json(schema.schema,f'.source/{data_limit}/{table_id}/schema.json')
     return rows , json.loads(f.getvalue()) # return data and schema
 
 def convert_bq_schema_to_postgres(bigquery_schema):
@@ -209,23 +214,23 @@ def read_bq_to_postgres(
     client,
     pg_host='localhost',
     pg_port='5432',
-    pg_dbname='db_cmd',
-    pg_user='db_cmd_user',
+    pg_dbname='postgres',
+    pg_user='postgres',
     pg_password='123456'):
     export_table = pd.DataFrame(columns=['table name', 'Number records'])
     for dataset in datasets:
         tables = client.list_tables(dataset)
         for table in tables:
-            data, schema = read_bq(project,dataset,table.table_id,client)
+            data, schema = read_bq(project,dataset,table.table_id,client, 100000)
             postgres_schema = convert_bq_schema_to_postgres(schema)
             # data = data.replace({pd.NA: None})
-            new_record = create_table_insert_data_pg(data,postgres_schema, pg_host,pg_port,pg_dbname,pg_user,pg_password,table.table_id)
-            df_extended = pd.DataFrame(new_record, index=[0])
-            export_table = pd.concat([export_table, df_extended],ignore_index = True)
-    return export_table
+    #         new_record = create_table_insert_data_pg(data,postgres_schema, pg_host,pg_port,pg_dbname,pg_user,pg_password,table.table_id)
+    #         df_extended = pd.DataFrame(new_record, index=[0])
+    #         export_table = pd.concat([export_table, df_extended],ignore_index = True)
+    # return export_table
 client = bigquery.Client(project=project)
 
 out = read_bq_to_postgres(project,dataset,client)
-out.to_csv('output.csv')
+# out.to_csv('output.csv')
 # bq_data, bq_schema  = read_bq(project,dataset,table_id,client)
 # postgres_schema = convert_bq_schema_to_postgres(bq_schema)

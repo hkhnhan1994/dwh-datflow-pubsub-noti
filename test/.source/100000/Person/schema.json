@@ -1,0 +1,92 @@
+[
+  {
+    "mode": "NULLABLE",
+    "name": "PersonId",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "Username",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "Name",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "EmailAddress",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "AddressStreet",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "AddressNumber",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "AddressCity",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "AddressCountry",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "AddressZipCode",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "PhoneNumber",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "Initials",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "LastName",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "LastNamePrefix",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "DateOfBirth",
+    "type": "DATE"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "ExternalReference",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "InsertDate",
+    "type": "DATETIME"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "LastUpdatedDate",
+    "type": "DATETIME"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "BsnkId",
+    "type": "STRING"
+  }
+]

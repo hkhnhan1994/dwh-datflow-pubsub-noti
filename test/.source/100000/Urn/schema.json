@@ -1,0 +1,17 @@
+[
+  {
+    "mode": "NULLABLE",
+    "name": "UrnId",
+    "type": "INTEGER"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "Urn",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "AttributeFormat",
+    "type": "STRING"
+  }
+]

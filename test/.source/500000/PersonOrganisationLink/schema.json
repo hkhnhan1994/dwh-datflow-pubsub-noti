@@ -1,0 +1,47 @@
+[
+  {
+    "mode": "NULLABLE",
+    "name": "PersonOrganisationLinkId",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "PersonId",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "OrganisationId",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "LinkType",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "LastConfirmedDateTime",
+    "type": "DATETIME"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "StartDate",
+    "type": "DATETIME"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "InsertDate",
+    "type": "DATETIME"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "LastServiceAuthorizationUse",
+    "type": "DATETIME"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "LastExtendDate",
+    "type": "DATETIME"
+  }
+]

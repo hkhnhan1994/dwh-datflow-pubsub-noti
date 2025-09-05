@@ -1,0 +1,42 @@
+[
+  {
+    "mode": "NULLABLE",
+    "name": "BTWID",
+    "type": "INTEGER"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "Naam",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "Standaard",
+    "type": "NUMERIC"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "MWIDChange",
+    "type": "INTEGER"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "DateChange",
+    "type": "DATETIME"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "MWIDLock",
+    "type": "INTEGER"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "DateLock",
+    "type": "DATETIME"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "rowguid",
+    "type": "STRING"
+  }
+]

@@ -1,0 +1,82 @@
+[
+  {
+    "mode": "NULLABLE",
+    "name": "ChainedOrganisationId",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "OrganisationId",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "Kvknummer",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "RSIN",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "DisplayName",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "StartDate",
+    "type": "DATETIME"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "MaxLevel",
+    "type": "INTEGER"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "VestigingsNummer",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "NextAuthorizationRegistryID",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "Reference",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "ContactInitials",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "ContactLanguage",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "ContactLastNamePrefix",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "ContactLastName",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "TrrNumber",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "ContactEmail",
+    "type": "STRING"
+  }
+]

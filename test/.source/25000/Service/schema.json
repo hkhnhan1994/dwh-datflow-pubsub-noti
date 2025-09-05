@@ -1,0 +1,62 @@
+[
+  {
+    "mode": "NULLABLE",
+    "name": "AdditionalInfo",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "Enabled",
+    "type": "BOOLEAN"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "IgnoreOnAutoUpdate",
+    "type": "BOOLEAN"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "InsertDate",
+    "type": "DATETIME"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "LastUpdatedDate",
+    "type": "DATETIME"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "RequiredLevel",
+    "type": "INTEGER"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "ServiceDescription",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "ServiceId",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "ServiceName",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "ServiceProviderId",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "ServiceUUID",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "ShowInDashboard",
+    "type": "BOOLEAN"
+  }
+]

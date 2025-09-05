@@ -1,0 +1,37 @@
+[
+  {
+    "mode": "NULLABLE",
+    "name": "PersonOrganisationRoleId",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "PersonOrganisationLinkId",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "Role",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "InsertDate",
+    "type": "DATETIME"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "StartDate",
+    "type": "DATETIME"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "ExpireDate",
+    "type": "DATETIME"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "Active",
+    "type": "BOOLEAN"
+  }
+]

@@ -1,0 +1,32 @@
+[
+  {
+    "mode": "NULLABLE",
+    "name": "ChainAuthorizationId",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "OrganisationId",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "DisplayName",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "IntermediateKvk",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "IntermediateEntityType",
+    "type": "INTEGER"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "IntermediateEntityId",
+    "type": "STRING"
+  }
+]

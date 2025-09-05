@@ -1,0 +1,62 @@
+[
+  {
+    "mode": "NULLABLE",
+    "name": "relationid",
+    "type": "INTEGER"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "fromklantid",
+    "type": "INTEGER"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "toklantid",
+    "type": "INTEGER"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "relationtype",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "begindate",
+    "type": "DATETIME"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "enddate",
+    "type": "DATETIME"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "relationstatus",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "relationrole",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "CreationDate",
+    "type": "DATETIME"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "CreatedBy",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "LastUpdatedDate",
+    "type": "DATETIME"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "LastUpdatedBy",
+    "type": "STRING"
+  }
+]

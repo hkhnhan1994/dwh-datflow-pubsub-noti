@@ -1,0 +1,142 @@
+[
+  {
+    "mode": "NULLABLE",
+    "name": "KlantID",
+    "type": "INTEGER"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "VolgNr",
+    "type": "INTEGER"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "AbonnementID",
+    "type": "INTEGER"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "Datum",
+    "type": "DATETIME"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "Opzegdatum",
+    "type": "DATETIME"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "AanmeldBrief",
+    "type": "NUMERIC"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "AutoIncasso",
+    "type": "NUMERIC"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "FactuurAanDealer",
+    "type": "NUMERIC"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "OrganisatieID",
+    "type": "INTEGER"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "MWIDChange",
+    "type": "INTEGER"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "DateChange",
+    "type": "DATETIME"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "MWIDLock",
+    "type": "INTEGER"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "DateLock",
+    "type": "DATETIME"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "FactTypeID",
+    "type": "INTEGER"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "rowguid",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "Domain",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "InbelUID",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "InbelPWD",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "InbelReplyAttr",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "Extra",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "InbelDomainID",
+    "type": "INTEGER"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "AanmelderID",
+    "type": "INTEGER"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "KortingVolgNr1",
+    "type": "INTEGER"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "KortingVolgNr2",
+    "type": "INTEGER"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "RestitutieVolgNr",
+    "type": "INTEGER"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "Referentie",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "Relaties",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "PONr",
+    "type": "STRING"
+  }
+]
