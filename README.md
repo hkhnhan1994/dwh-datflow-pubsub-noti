@@ -26,13 +26,13 @@ pip install --upgrade 'apache-beam[gcp]'
 Create a notification for your GCS bucket to trigger the pipeline when new data arrives. Replace `[bucket name]`, `[project name]`, and `[topic name]` with your actual bucket name, project name, and topic name respectively.
 
 ```bash
-gcloud storage buckets notifications create gs://[bucket name] --topic=projects/[project name]/topics/[topic name]
+gcloud storage buckets notifications create gs://[bucket name] --topic=projects/[project name]/topics/[topic name] --object-prefix=[your/prefix]
 ```
 
 **Example:**
 
 ```bash
-gcloud storage buckets notifications create gs://upg-data-sbx-eu-datastream-documents --topic=projects/pj-bu-dw-data-sbx/topics/gcs_noti -p datastream-postgres/datastream/cmd_test
+gcloud storage buckets notifications create gs://upg-data-sbx-eu-datastream-documents --topic=projects/halogen-parser-471115-i4/topics/gcs_noti -p datastream-postgres/datastream/cmd_test
 ```
 
 ### Configure Pipeline Settings

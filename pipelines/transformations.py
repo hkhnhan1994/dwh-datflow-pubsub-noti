@@ -39,7 +39,7 @@ class read_path_from_pubsub(beam.PTransform):
         get_message_contains_file_url =(
                 pcoll
                 | "read gcs noti" >> beam.io.MultipleReadFromPubSub(subs).with_output_types(bytes) 
-                # | "read gcs noti" >> ReadFromPubSub(subscription = "projects/pj-bu-dw-data-sbx/subscriptions/test1mess").with_output_types(bytes)
+                # | "read gcs noti" >> ReadFromPubSub(subscription = "projects/halogen-parser-471115-i4/subscriptions/test1mess").with_output_types(bytes)
                 | "to json" >> beam.Map(json.loads)
                 |"check if file arrived" >> beam.Filter(filter, self.file_format)
                 | beam.Map(path_former)

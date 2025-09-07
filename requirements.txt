@@ -6,3 +6,5 @@ google-cloud
 google-cloud-bigquery
 google-cloud-storage
 google-cloud-logging
+google-api-python-client
+psycopg2-binary

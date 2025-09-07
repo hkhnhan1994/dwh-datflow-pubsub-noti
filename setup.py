@@ -8,7 +8,7 @@ setup(
     install_requires=[
         'PyYAML',
         # 'unicodecsv==0.14.1'
-        # "pip install 'apache-beam[gcp]'"
+        "apache-beam[gcp]==2.58.0",
         "pyfiglet",
         "avro==1.11.3",
         "google-cloud-storage==2.18.2"  

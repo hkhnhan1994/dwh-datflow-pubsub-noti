@@ -1,17 +1,17 @@
 """Configuration of the dataflow."""
 
 beam_config={
-    "job_name": "cmd-stream1",
+    "job_name": "cmd-stream3",
     "staging_location": "gs://justatestbucket123/datastream-postgres/Beam-pubsub/staging",
     "temp_location": "gs://justatestbucket123/datastream-postgres/Beam-pubsub/temp",
     "project": "halogen-parser-471115-i4",
-    "region": "europe-west1",
-    "max_num_workers": 1,
+    "region": "europe-west2",
+    "max_num_workers": 2,
     "max_cache_memory_usage_mb": 8096,
     # "number_of_worker_harness_threads": 4,
     "experiments":["no_use_multiple_sdk_containers","enable_data_sampling"],
     "num_workers": 1,
-    "worker_region": 'europe-west1',
+    "worker_region": 'europe-west2',
     "machine_type": 'n2-highmem-2',
     "disk_size_gb": 20,
     "runner": "DataflowRunner", # DirectRunner DataflowRunner
@@ -25,7 +25,7 @@ beam_config={
 pubsub_config={
     "project": "halogen-parser-471115-i4",
     "subscription": ["test_sub-sub"],  # test1mess test_sub gs_noti_dead_letter_sub
-    "blob_name_prefix": "datastream-postgres/datastream/",
+    "blob_name_prefix": "datastream-postgres/datastream/datastream-postgres/datastream/",
     "bucket_name": "justatestbucket123",
     "topic_name": "test_sub"
 }
@@ -60,7 +60,7 @@ dead_letter = {
 "bq_channel":
     {
         "table_id": "error_log_table",
-        "project": "pj-bu-dw-data-sbx",
+        "project": "halogen-parser-471115-i4",
         "dataset": "dev_dl_error_log",
         "schema":{'fields': [
                 {'name': 'destination', 'type': 'STRING', 'mode': 'NULLABLE'},
@@ -73,7 +73,7 @@ dead_letter = {
 "chat_channel":
     {
         "topics": "gs_noti_dead_letter",
-        "project": "pj-bu-dw-data-sbx",
+        "project": "halogen-parser-471115-i4",
     },
         }
 LOCAL_LOG = False

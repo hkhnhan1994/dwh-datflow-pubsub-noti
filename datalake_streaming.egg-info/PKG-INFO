@@ -1,10 +1,17 @@
-Metadata-Version: 1.0
+Metadata-Version: 2.4
 Name: datalake-streaming
 Version: 0.0.2
 Summary: dataflow
 Home-page: an url example
 Author: My name
 Author-email: my@email.com
-License: UNKNOWN
-Description: UNKNOWN
-Platform: UNKNOWN
+Requires-Dist: PyYAML
+Requires-Dist: apache-beam[gcp]==2.58.0
+Requires-Dist: pyfiglet
+Requires-Dist: avro==1.11.3
+Requires-Dist: google-cloud-storage==2.18.2
+Dynamic: author
+Dynamic: author-email
+Dynamic: home-page
+Dynamic: requires-dist
+Dynamic: summary
